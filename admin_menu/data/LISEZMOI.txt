@@ -1,0 +1,2 @@
+Ce dossier contient les sauvegardes du menu (grades, staff, bans, props, PNJ, zones de récolte...).
+Ne le remplace jamais lors d'une mise à jour, sinon tout sera perdu.

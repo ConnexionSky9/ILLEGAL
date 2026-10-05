@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>MenuStaff Elyzea FA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app" class="hidden">
+        <div class="screen">
+            <div class="statusbar">
+                <img src="logo.png" class="sb-logo" alt="">
+                <span class="sb-title">MenuStaff <span>Elyzea</span> FA</span>
+                <span class="sb-spacer"></span>
+                <button class="sb-duty" id="sb-duty" title="Activer / désactiver tes fonctions staff"></button>
+                <span class="sb-item" id="sb-players"></span>
+                <span class="sb-item" id="sb-clock"></span>
+                <button class="sb-close" id="close-btn" title="Fermer (Échap)">✕</button>
+            </div>
+            <div class="body">
+                <aside class="sidebar">
+                    <div class="brand">
+                        <img src="logo.png" class="brand-logo" alt="Elyzea">
+                        <div class="brand-name">MenuStaff</div>
+                        <div class="brand-sub">Elyzea FA</div>
+                    </div>
+                    <div class="identity">
+                        <div class="identity-stripe" id="me-stripe"></div>
+                        <div>
+                            <div class="identity-label">Connecté en tant que</div>
+                            <div class="identity-rank" id="me-rank">—</div>
+                        </div>
+                    </div>
+                    <nav id="tabs"></nav>
+                    <div class="sidebar-foot" id="sidebar-foot"></div>
+                </aside>
+                <main>
+                    <header class="topbar"><h1 id="page-title"></h1><p id="page-sub"></p></header>
+                    <section id="content"></section>
+                </main>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-root"></div>
+    <div id="toasts"></div>
+    <div id="announce" class="hidden"></div>
+    <div id="warn" class="hidden"></div>
+    <div id="station" class="hidden"></div>
+    <div id="npc" class="hidden"></div>
+    <div id="keyshud" class="hidden"></div>
+    <div id="zonemsg" class="hidden"></div>
+    <div id="door" class="hidden"></div>
+    <div id="jailhud" class="hidden"></div>
+    <div id="zombiehud" class="hidden"></div>
+    <div id="quick" class="hidden"></div>
+    <div id="pmstack"></div>
+    <div id="prompt" class="hidden" aria-live="polite"></div>
+    <div id="dprogress" class="hidden"><div class="dp-lab"><b></b><span></span></div><div class="dp-track"><i></i></div><small>X pour annuler</small></div>
+    <div id="dprogress" class="hidden"><div class="dp-lab"><b></b><span></span></div><div class="dp-track"><i></i></div><small>X pour annuler</small></div>
+
+    <script src="catalog.js"></script>
+    <script src="script.js"></script>
+    <script src="gofast.js"></script>
+    <script src="zombies.js"></script>
+    <script src="quick.js"></script>
+    <script src="ems.js"></script>
+    <script src="police.js"></script>
+    <script src="jobtools.js"></script>
+    <script src="lscustom.js"></script>
+    <script src="concess.js"></script>
+    <script src="map.js"></script>
+    <script src="stashes.js"></script>
+    <script src="drops.js"></script>
+</body>
+</html>
