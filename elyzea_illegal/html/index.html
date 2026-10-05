@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Elyzea Illégal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=Cinzel:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app" class="hidden">
+        <div class="screen">
+            <div class="statusbar">
+                <img src="logo.png" class="sb-logo" alt="">
+                <span class="sb-title" id="sb-title">Illégal</span>
+                <span class="sb-spacer"></span>
+                <span class="sb-item" id="sb-via"></span>
+                <span class="sb-item" id="sb-clock"></span>
+                <button class="sb-close" id="close-btn" title="Fermer (Échap)">✕</button>
+            </div>
+            <div class="body">
+                <aside class="sidebar">
+                    <div class="brand">
+                        <div class="crest" id="crest"></div>
+                        <div class="brand-name" id="brand-name"></div>
+                        <div class="brand-sub" id="brand-sub"></div>
+                    </div>
+                    <div class="identity">
+                        <div class="identity-stripe"></div>
+                        <div>
+                            <div class="identity-label" id="me-name"></div>
+                            <div class="identity-rank" id="me-grade"></div>
+                        </div>
+                    </div>
+                    <nav id="tabs"></nav>
+                </aside>
+                <main>
+                    <header class="topbar"><h1 id="page-title"></h1><p id="page-sub"></p></header>
+                    <section id="content"></section>
+                </main>
+            </div>
+        </div>
+    </div>
+    <div id="modal-root"></div>
+    <div id="toasts"></div>
+    <script src="app.js"></script>
+</body>
+</html>
