@@ -180,3 +180,26 @@ function DB.deleteSpot(id) T.spots[id] = nil return 1 end
 function DB.insertLog(groupId, actor, action, details)
     T.logs[#T.logs + 1] = { group_id = groupId, actor = actor, action = action, details = details, created = os.time() }
 end
+
+-- Missions
+T.missions, T.settings, T.runs = {}, {}, {}
+function DB.loadMissions()
+    local m, st, pr, runs = {}, {}, {}, {}
+    for id, r in pairs(T.missions) do m[#m + 1] = { id = id, type = r.type, config = r.config } end
+    for name, v in pairs(T.settings) do st[#st + 1] = { name = name, value = v } end
+    for id, g in pairs(T.groups) do pr[#pr + 1] = { id = id, mission_level = g.mission_level or 0, mission_xp = g.mission_xp or 0 } end
+    for _, r in ipairs(T.runs) do if r.ended then runs[#runs + 1] = { mission_id = r.mission_id, group_id = r.group_id, participants = r.participants, ended = r.ended } end end
+    return { missions = m, settings = st, progress = pr, runs = runs }
+end
+function DB.closeStaleRuns() for _, r in ipairs(T.runs) do if r.status == 'active' then r.status, r.ended = 'failed', os.time() end end end
+function DB.saveMission(id, typ, cfg) T.missions[id] = { type = typ, config = json.encode(cfg) } return {} end
+function DB.saveSetting(name, v) T.settings[name] = json.encode(v) return {} end
+function DB.saveProgress(gid, level, xp) if T.groups[gid] then T.groups[gid].mission_level, T.groups[gid].mission_xp = level, xp end return 1 end
+function DB.insertRun(r)
+    T.runs[#T.runs + 1] = { mission_id = r.missionId, group_id = r.groupId, participants = json.encode(r.participantList or {}), status = 'active' }
+    return #T.runs
+end
+function DB.endRun(id, status, reward, xp, parts)
+    local r = T.runs[id]
+    r.status, r.reward, r.xp, r.participants, r.ended = status, reward, xp, json.encode(parts or {}), os.time()
+end

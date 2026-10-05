@@ -17,6 +17,8 @@ local ACTION_PERM = {
     placeOrder = 'orders_place', createOrder = 'orders_manage', updateOrder = 'orders_manage', deleteOrder = 'orders_manage',
     validateRequest = 'orders_validate', refuseRequest = 'orders_validate',
     saveSettings = 'settings',
+    startMission = 'missions_start',
+    -- joinMission / abandonMission : membre du groupe (abandon : lanceur ou chef)
     -- deposit / withdraw : permission selon le compte (clean_deposit, dirty_withdraw…)
     -- cancelRequest / leave : seulement ses propres commandes / soi-même (le sac se ramasse sur place : deliveries.lua)
 }
@@ -110,6 +112,7 @@ function Tablet.build(src)
     data.requests = requests
 
     if grade.boss or perms.settings then data.logs = Cache.logs(g) end
+    if Missions and Missions.ready then data.missions = Missions.tabletData(ctx) end
     return data
 end
 
@@ -176,6 +179,10 @@ local HANDLERS = {
     validateRequest = function(a, g, d) return Orders.validate(a, g, U.int(d.id, 1)) end,
     refuseRequest   = function(a, g, d) return Orders.refuse(a, g, U.int(d.id, 1)) end,
     cancelRequest   = function(a, g, d) return Orders.cancel(a, g, U.int(d.id, 1)) end,
+
+    startMission   = function(a, g, d) if not Missions then return false, 'Missions indisponibles.' end return Missions.start(a, U.text(d.id, 32)) end,
+    joinMission    = function(a) if not Missions then return false, 'Missions indisponibles.' end return Missions.join(a) end,
+    abandonMission = function(a) if not Missions then return false, 'Missions indisponibles.' end return Missions.abandon(a) end,
 
     -- Le type et les onglets F5 restent réservés au staff
     saveSettings = function(a, g, d)

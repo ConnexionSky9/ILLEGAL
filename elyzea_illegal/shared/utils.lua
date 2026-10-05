@@ -98,7 +98,11 @@ function U.tabSet(v, default)
     if v[1] ~= nil then
         for _, k in ipairs(v) do if Illegal.TabSet[k] then out[k] = true end end
     else
-        for k, on in pairs(v) do if on == true and Illegal.TabSet[k] then out[k] = true end end
+        -- Onglet absent : désactivé, sauf s'il a été ajouté par une mise à jour (actif par défaut)
+        for _, t in ipairs(Illegal.Tabs) do
+            local on = v[t.key]
+            if on == nil then out[t.key] = Illegal.NewTabs[t.key] == true else out[t.key] = on == true end
+        end
     end
     out.home = true
     return out

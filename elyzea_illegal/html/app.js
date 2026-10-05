@@ -15,7 +15,7 @@ const signed = (n) => `<span class="amount ${n >= 0 ? 'plus' : 'minus'}">${n >= 
 const date = (t) => (t ? new Date(t * 1000).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
 const ACCOUNTS = { clean: 'Argent propre', dirty: 'Argent sale' };
 const PAYMENTS = { clean: 'Argent propre', dirty: 'Argent sale', both: 'Propre ou sale' };
-const TX = { deposit: 'Dépôt', withdraw: 'Retrait', admin_add: 'Ajout staff', admin_remove: 'Retrait staff', order: 'Commande' };
+const TX = { deposit: 'Dépôt', withdraw: 'Retrait', admin_add: 'Ajout staff', admin_remove: 'Retrait staff', order: 'Commande', mission: 'Mission' };
 const STATUS = { pending: ['En attente de validation', 'gold'], preparing: ['En préparation', 'gold'], ready: ['Prête : point GPS', 'ok'], delivered: ['Livrée', 'ok'],
     refused: ['Refusée', 'danger'], cancelled: ['Annulée', ''] };
 const hhmm = (t) => (t ? new Date(t * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
@@ -30,6 +30,7 @@ function normalize(d) {
     if (d.logs) d.logs = arr(d.logs);
     if (d.finance) d.finance.history = arr(d.finance.history);
     d.group.og = arr(d.group.og);
+    if (d.missions) { d.missions.list = arr(d.missions.list); if (d.missions.active) d.missions.active.participants = arr(d.missions.active.participants); }
     d.tabs = d.tabs || {};
     return d;
 }
@@ -48,6 +49,8 @@ const TABS = [
         show: () => ['finance_view', 'clean_deposit', 'clean_withdraw', 'dirty_deposit', 'dirty_withdraw'].some(can) },
     { id: 'orders', label: 'Commandes', ico: '📦', sub: () => 'Commandes illégales disponibles pour le groupe.',
         show: () => true, count: () => (can('orders_validate') ? D.requests.filter((r) => r.status === 'pending').length : 0) },
+    { id: 'missions', label: 'Missions', ico: '🎯', sub: () => 'Missions du groupe : XP, niveaux et récompenses versées au coffre.',
+        show: () => !!D.missions, count: () => (D.missions && D.missions.active ? 1 : 0) },
     { id: 'settings', label: 'Paramètres', ico: '⚙️', sub: () => 'Nom, description et couleur du groupe.', show: () => can('settings') },
 ];
 const visibleTabs = () => TABS.filter((t) => D.tabs && D.tabs[t.id] && t.show());
@@ -73,8 +76,53 @@ window.addEventListener('message', (e) => {
         openF5(m.data);
     } else if (m.action === 'f5close') {
         $('#quick').classList.add('hidden');
+    } else if (m.action === 'missionHud') {
+        missionHud(m);
+    } else if (m.action === 'dprogress') {
+        dprogress(m);
+    } else if (m.action === 'missionEnd') {
+        missionEnd(m);
     }
 });
+
+/* ---------- Missions : compte à rebours, barre de progression (rendu du MenuStaff), fin ---------- */
+let hudTimer = null, hudEnd = 0;
+function missionHud(m) {
+    const el = $('#missionhud');
+    clearInterval(hudTimer);
+    if (!m.show) { el.classList.add('hidden'); return; }
+    hudEnd = Date.now() + (m.remaining || 0) * 1000;
+    const draw = () => {
+        const left = Math.max(0, Math.round((hudEnd - Date.now()) / 1000));
+        el.innerHTML = `<div class="jh-title">🎯 ${esc(m.label)}</div><div class="jh-time ${left <= 60 ? 'low' : ''}">${clock(left)}</div>
+            <div class="mh-stage">${esc(m.stage || '')}</div><div class="jh-reason">${esc(m.info || '')}</div>`;
+    };
+    draw();
+    hudTimer = setInterval(draw, 1000);
+    el.classList.remove('hidden');
+}
+function dprogress(m) {
+    const el = $('#dprogress');
+    clearInterval(window.__dpT);
+    if (!m.show) { el.classList.add('hidden'); return; }
+    el.querySelector('b').textContent = m.label || '';
+    const bar = el.querySelector('i');
+    bar.style.transition = 'none'; bar.style.width = '0'; void bar.offsetWidth;
+    bar.style.transition = `width ${m.time}s linear`; bar.style.width = '100%';
+    const end = Date.now() + m.time * 1000, sp = el.querySelector('span');
+    const tick = () => { sp.textContent = `${Math.max(0, Math.ceil((end - Date.now()) / 1000))} s`; };
+    tick(); window.__dpT = setInterval(tick, 250);
+    el.classList.remove('hidden');
+}
+let endTimer = null;
+function missionEnd(m) {
+    const el = $('#missionend');
+    const [title, ...rest] = String(m.message || '').split(' : ');
+    el.className = m.success ? '' : 'fail';
+    el.innerHTML = `<b>${esc(title || (m.success ? 'MISSION TERMINÉE' : 'MISSION ÉCHOUÉE'))}</b>${rest.length ? `<span>${esc(rest.join(' : '))}</span>` : ''}`;
+    clearTimeout(endTimer);
+    endTimer = setTimeout(() => el.classList.add('hidden'), 6000);
+}
 
 /* ---------- Invite d'interaction [E] (même rendu que le MenuStaff) ---------- */
 function showPrompt(m) {
@@ -277,6 +325,43 @@ VIEWS.orders = () => {
         </div>`;
 };
 
+/* ---------- Missions ---------- */
+const clock = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const dur = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}` : `${Math.ceil(s / 60)} min`);
+VIEWS.missions = () => {
+    const m = D.missions, p = m.progress;
+    const pct = p.need ? Math.min(100, Math.round((p.xp / p.need) * 100)) : 100;
+    const a = m.active;
+    return `
+        <div class="stats">
+            <div class="stat"><b>${p.level}</b><span>Niveau · ${esc(p.label)}</span></div>
+            <div class="stat money"><b>${p.need ? `${p.xp} / ${p.need}` : `${p.xp} · MAX`}</b><span>XP ${p.nextLabel ? `vers « ${esc(p.nextLabel)} »` : '(niveau maximum)'}</span>
+                <div class="mbar"><i style="width:${pct}%"></i></div></div>
+        </div>
+        ${a ? `<div class="section"><h2>Mission en cours : ${esc(a.label)}</h2>
+            <p class="hint">${esc(a.stage)} · temps restant <b>${clock(a.remaining)}</b> · participants : ${esc(a.participants.join(', '))}</p>
+            <div class="btn-row">${a.mine ? '' : '<button class="btn primary" data-a="joinMission">Rejoindre</button>'}
+                ${a.starter || m.boss ? '<button class="btn danger" data-a="abandonMission">Abandonner</button>' : ''}</div></div>` : ''}
+        <div class="section"><h2>Missions</h2>
+            ${m.list.length ? `<div class="cards">${m.list.map((x) => {
+                const need = x.levelRequired > p.level;
+                const missing = need && p.need ? Math.max(0, p.need - p.xp) : 0;
+                return `<div class="card mcard ${x.locked ? 'locked' : ''}">
+                    <div class="t">${x.locked ? '🔒' : '🟢'} ${esc(x.label)}</div>
+                    <div class="muted">${esc(x.description || '')}</div>
+                    <div>Niveau requis : <b>${x.levelRequired}</b> · XP : <b>+${x.xp}</b></div>
+                    <div class="muted">${x.minPlayers}-${x.maxPlayers} joueur(s) · ${x.minutes} min${x.money ? ` · ${money(x.money.min)} à ${money(x.money.max)} au coffre` : ''}${x.items ? ` · ${x.items} objet(s)` : ''}</div>
+                    ${x.locked ? `<div class="lock">MISSION VERROUILLÉE</div>
+                        <div class="muted">Niveau requis : ${x.levelRequired} · Votre niveau : ${p.level}${p.need ? `<br>XP : ${p.xp} / ${p.need}${x.levelRequired === p.level + 1 ? ` · ${missing} XP nécessaires` : ''}` : ''}</div>`
+                        : x.cooldown > 0 ? `<div class="muted">⏳ Disponible dans ${dur(x.cooldown)}</div>`
+                        : m.canStart && !a ? `<div class="btn-row"><button class="btn primary" data-a="startMission" data-mid="${esc(x.id)}">Lancer la mission</button></div>`
+                        : `<div class="muted">${a ? 'Une mission est déjà en cours.' : 'Ton grade ne permet pas de lancer une mission.'}</div>`}
+                </div>`;
+            }).join('')}</div>` : '<div class="empty">Aucune mission disponible pour ton groupe.</div>'}
+            <p class="hint" style="margin-top:12px">Les membres du groupe à proximité de celui qui lance la mission y participent. Les récompenses vont dans le coffre du groupe, une seule fois.</p>
+        </div>`;
+};
+
 /* ---------- Paramètres ---------- */
 VIEWS.settings = () => `
     <div class="section"><h2>Paramètres du groupe</h2>
@@ -472,6 +557,16 @@ document.addEventListener('click', async (e) => {
         case 'refuseRequest': return action('refuseRequest', { id });
         case 'cancelRequest': return action('cancelRequest', { id });
         case 'gps': return post('gps', { id });
+        case 'startMission': {
+            const x = D.missions.list.find((y) => y.id === b.dataset.mid);
+            if (x && await confirmBox(`Lancer « ${x.label} » ?`, `Durée : ${x.minutes} minutes. Les membres du groupe proches de toi participent avec toi.`))
+                action('startMission', { id: x.id });
+            return;
+        }
+        case 'joinMission': return action('joinMission');
+        case 'abandonMission':
+            if (await confirmBox('Abandonner la mission ?', 'La mission échoue : aucune récompense, et le cooldown s\'applique.')) action('abandonMission');
+            return;
         case 'saveSettings':
             return action('saveSettings', { label: $('#set-label').value, color: $('#set-color').value, description: $('#set-desc').value });
     }

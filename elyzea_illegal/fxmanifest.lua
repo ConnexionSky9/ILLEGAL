@@ -21,6 +21,8 @@ client_scripts {
     'client/tablet.lua',
     'client/deliveries.lua',
     'client/stashes.lua',
+    'client/missions/core.lua',
+    'client/missions/colis.lua',
 }
 
 server_scripts {
@@ -38,6 +40,8 @@ server_scripts {
     'server/orders.lua',
     'server/deliveries.lua',
     'server/stashes.lua',
+    'server/missions/core.lua',
+    'server/missions/colis.lua',
     'server/tablet.lua',
     'server/admin.lua',
     'server/main.lua',

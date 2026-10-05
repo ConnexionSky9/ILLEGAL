@@ -79,6 +79,30 @@ const target = (attr, data) => ({ dataset: data, disabled: false, closest: (sel)
             clean(vm.runInContext('__html', ctx), `${fx} › ${sub}`);
         }
     }
+    // ILLEGAL › Missions : accueil (niveaux, liste) puis chaque section de la page « Colis test »
+    setData(load('admin_list'));
+    vm.runInContext('render()', ctx);
+    click('data-mt', { mt: 'missions' });
+    let mh = vm.runInContext('__html', ctx);
+    clean(mh, 'ILLEGAL › Missions');
+    check(mh.includes('Colis test') && mh.includes('Niveaux des groupes') && mh.includes('data-mx="lvlSave"'), 'missions : liste et niveaux');
+    click('data-mx', { mx: 'open', mid: 'colis_test' });
+    for (const sec of ['general', 'groups', 'progression', 'locations', 'guards', 'weapons', 'crate', 'delivery', 'timer', 'rewards', 'phone', 'cooldown', 'security']) {
+        click('data-msec', { msec: sec });
+        clean(vm.runInContext('__html', ctx), `Colis test › ${sec}`);
+    }
+    click('data-msec', { msec: 'guards' });
+    check((vm.runInContext('__html', ctx).match(/Garde \d+/g) || []).length === 6, 'page Gardes : 6 gardes réglables');
+    click('data-msec', { msec: 'timer' });
+    click('data-mx', { mx: 'preset', path: 'timer.minutes', v: '20' });
+    click('data-mx', { mx: 'save', sec: 'timer' });
+    const ms = ctx.sent[ctx.sent.length - 1];
+    check(ms.data.name === 'missionSave' && ms.data.data.section === 'timer' && ms.data.data.data.minutes === 20, 'timer : enregistrement envoyé (20 min)');
+    click('data-mx', { mx: 'close' });
+    click('data-mt', { mt: 'groups' });
+    const gh = vm.runInContext('__html', ctx);
+    check(gh.includes('Progression des groupes') && gh.includes('data-op="setXp"'), 'groupes : progression et actions');
+
     setData(load('admin_bloods'));
     vm.runInContext('render()', ctx);   // le menu fait un rendu à chaque réception de données
     click('data-ils', { ils: 'grades' });
@@ -114,7 +138,7 @@ for (const fx of ['tablet_og', 'tablet_lieutenant', 'tablet_recrue_vagos']) {
     winListeners.message.forEach((fn) => fn({ data: { action: 'open', data } }));
     check(els['#brand-name'].textContent === data.group.label, `${fx} : nom du groupe affiché (${data.group.label})`);
     const tabsHtml = els['#tabs'].innerHTML;
-    for (const t of ['home', 'members', 'grades', 'finances', 'orders', 'settings']) {
+    for (const t of ['home', 'members', 'grades', 'finances', 'orders', 'missions', 'settings']) {
         if (!tabsHtml.includes(`data-tab="${t}"`)) continue;
         els['#tabs'].listeners.click.forEach((fn) => fn({ target: { closest: () => ({ dataset: { tab: t } }) } }));
         clean(els['#content'].innerHTML, `${fx} › ${t}`);
@@ -133,6 +157,9 @@ for (const fx of ['tablet_og', 'tablet_lieutenant', 'tablet_recrue_vagos']) {
         check(!els['#content'].innerHTML.includes('data-a="recruit"'), 'recrue : pas de bouton recruter');
     }
     if (fx === 'tablet_og') {
+        els['#tabs'].listeners.click.forEach((fn) => fn({ target: { closest: () => ({ dataset: { tab: 'missions' } }) } }));
+        const mh2 = els['#content'].innerHTML;
+        check(mh2.includes('Colis test') && mh2.includes('Lancer la mission') && mh2.includes('Niveau'), 'tablette : onglet Missions (OG peut lancer)');
         check(tabsHtml.includes('data-tab="settings"') && perms.settings, 'OG : onglet Paramètres');
         els['#tabs'].listeners.click.forEach((fn) => fn({ target: { closest: () => ({ dataset: { tab: 'finances' } }) } }));
         const fin = els['#content'].innerHTML;

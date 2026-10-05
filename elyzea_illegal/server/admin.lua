@@ -107,6 +107,7 @@ exports('AdminData', function(src)
         selected = sel and groupDetail(sel) or nil,
         spots = spots, defaultSpots = #Config.Delivery.defaultSpots, now = os.time(),
         items = items,
+        missions = (Missions and Missions.ready) and Missions.adminData() or nil,
         delivery = { prepareMinutes = Config.Delivery.prepareMinutes, minDistance = Config.Delivery.minDistance,
             requireValidation = Config.Orders.requireValidation },
         stashConfig = { models = Config.Stash.models, defaultWeight = Config.Stash.defaultWeight, defaultSlots = Config.Stash.defaultSlots,
@@ -195,11 +196,51 @@ A.gotoSpot = function(src, d)
     return true
 end
 
+-- ---------------------------------------------------------
+--  Missions (ILLEGAL › Missions / Groupes › progression)
+-- ---------------------------------------------------------
+local function needMissions() if not Missions or not Missions.ready then return false, 'Missions indisponibles.' end return true end
+A.missionSave = function(src, d)
+    local ok, err = needMissions() if not ok then return ok, err end
+    return Missions.saveSection(staffActor(src), U.text(d.missionId, 32), U.text(d.section, 20), d.data)
+end
+A.missionPoint = function(src, d)
+    local ok, err = needMissions() if not ok then return ok, err end
+    return Missions.pointOp(staffActor(src), U.text(d.missionId, 32), U.text(d.section, 20), U.text(d.op, 20), d.index, d.data)
+end
+A.missionTp = function(src, d)
+    local ok, err = needMissions() if not ok then return ok, err end
+    local cfg = Missions.configs[U.text(d.missionId, 32) or '']
+    local def = cfg and Missions.types[cfg.type]
+    local field = def and def.pointLists and def.pointLists[d.section]
+    local p = field and cfg[d.section][field][U.int(d.index, 1) or 0]
+    if not p then return false, 'Point introuvable.' end
+    if d.guard then p = p.guards and p.guards[U.int(d.guard, 1) or 0] if not p then return false, 'Position introuvable.' end end
+    TriggerClientEvent('adminmenu:teleport', src, { x = p.x, y = p.y, z = p.z + 1.0 })
+    return true
+end
+A.missionStop = function(src, d)
+    local ok, err = needMissions() if not ok then return ok, err end
+    return Missions.stop(staffActor(src), d.runId)
+end
+A.levelsSave = function(src, d)
+    local ok, err = needMissions() if not ok then return ok, err end
+    return Progress.saveLevels(staffActor(src), d.levels)
+end
+A.progress = function(src, d, g)
+    local ok, err = needMissions() if not ok then return ok, err end
+    local actor = staffActor(src)
+    local res, msg = Progress.change(actor, g, U.text(d.op, 10), d.value, 'Staff')
+    if res then Log(actor, g.id, 'Progression modifiée (staff)', ('%s : %s %s'):format(g.label, tostring(d.op), tostring(d.value or ''))) end
+    return res, msg
+end
+
 A.validateRequest = function(src, d, g) return Orders.validate(staffActor(src), g, U.int(d.requestId, 1)) end
 A.refuseRequest = function(src, d, g) return Orders.refuse(staffActor(src), g, U.int(d.requestId, 1)) end
 
 -- Actions qui n'ont pas besoin d'un groupe existant
-local NO_GROUP = { select = true, back = true, createGroup = true, loadItems = true, addSpot = true, removeSpot = true, gotoSpot = true }
+local NO_GROUP = { select = true, back = true, createGroup = true, loadItems = true, addSpot = true, removeSpot = true, gotoSpot = true,
+    missionSave = true, missionPoint = true, missionTp = true, missionStop = true, levelsSave = true }
 -- Commandes « tous les groupes » : le groupe est facultatif
 local OPTIONAL_GROUP = { createOrder = true, updateOrder = true, deleteOrder = true }
 

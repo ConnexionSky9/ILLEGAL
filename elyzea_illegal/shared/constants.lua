@@ -29,6 +29,15 @@ fill(Config, {
             { label = 'Scierie de Paleto', x = -575.0, y = 5325.0, z = 70.2, h = 160.0 },
         },
     },
+    Missions = {
+        levels = { { label = 'Niveau 0', xp = 0 }, { label = 'Niveau 1', xp = 100 }, { label = 'Niveau 2', xp = 250 },
+            { label = 'Niveau 3', xp = 500 }, { label = 'Niveau 4', xp = 1000 }, { label = 'Niveau 5', xp = 2000 } },
+        levelUpMessage = 'Ton groupe passe niveau {level} ({label}).',
+        behaviors = { { key = 'passive', label = 'Passif' }, { key = 'wary', label = 'Méfiant' }, { key = 'aggressive', label = 'Agressif' },
+            { key = 'very_aggressive', label = 'Très agressif' } },
+        weaponActions = { { key = 'none', label = 'Rien' }, { key = 'warn', label = 'Avertissement' }, { key = 'fail', label = 'Échec' } },
+        colisDefaults = { locations = {}, deliveries = {} },
+    },
     Stash = {
         models = {
             { model = 'prop_ld_int_safe_01', label = 'Coffre-fort' }, { model = 'p_v_43_safe_s', label = 'Petit coffre-fort' },
@@ -56,6 +65,7 @@ Illegal.Permissions = {
     { key = 'orders_manage',   label = 'Créer / configurer les commandes', cat = 'Commandes' },
     { key = 'orders_validate', label = 'Valider / refuser les commandes',  cat = 'Commandes' },
     { key = 'stash',           label = 'Accès au coffre du groupe',        cat = 'Coffre' },
+    { key = 'missions_start',  label = 'Lancer une mission illégale',      cat = 'Missions' },
     { key = 'settings',        label = 'Paramètres du groupe',             cat = 'Configuration' },
 }
 
@@ -69,8 +79,11 @@ Illegal.Tabs = {
     { key = 'grades',   label = 'Grades' },
     { key = 'finances', label = 'Finances' },
     { key = 'orders',   label = 'Commandes' },
+    { key = 'missions', label = 'Missions' },
     { key = 'settings', label = 'Paramètres' },
 }
+-- Onglets ajoutés après coup : actifs par défaut pour les groupes et PNJ déjà configurés
+Illegal.NewTabs = { missions = true }
 Illegal.TabSet = {}
 for _, t in ipairs(Illegal.Tabs) do Illegal.TabSet[t.key] = true end
 
@@ -82,6 +95,7 @@ Illegal.ActionTab = {
     placeOrder = 'orders', createOrder = 'orders', updateOrder = 'orders', deleteOrder = 'orders',
     validateRequest = 'orders', refuseRequest = 'orders', cancelRequest = 'orders',
     saveSettings = 'settings',
+    startMission = 'missions', joinMission = 'missions', abandonMission = 'missions',
 }
 
 Illegal.Accounts = { clean = 'Argent propre', dirty = 'Argent sale' }
@@ -89,7 +103,7 @@ Illegal.Accounts = { clean = 'Argent propre', dirty = 'Argent sale' }
 Illegal.TxTypes = {
     deposit = 'Dépôt', withdraw = 'Retrait',
     admin_add = 'Ajout staff', admin_remove = 'Retrait staff',
-    order = 'Commande',
+    order = 'Commande', mission = 'Mission',
 }
 
 Illegal.Payments = { clean = 'Argent propre', dirty = 'Argent sale', both = 'Propre ou sale' }

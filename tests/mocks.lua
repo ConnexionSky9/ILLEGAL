@@ -116,13 +116,22 @@ local resources = {
             return true
         end,
         AddItem = function(_, src, item, n)
+            if type(src) == 'string' then   -- inventaire d'un coffre
+                if not M.stashes[src] then return false end
+                M.stashes[src].items = M.stashes[src].items or {}
+                M.stashes[src].items[item] = (M.stashes[src].items[item] or 0) + n
+                return true
+            end
             local p = M.players[src]
             if not p.canCarry then return false, 'inventory_full' end
             p.items[item] = (p.items[item] or 0) + n
             return true
         end,
         CanCarryItem = function(_, src) return M.players[src].canCarry end,
-        RegisterStash = function(_, id, label, slots, weight) M.stashes[id] = { label = label, slots = slots, weight = weight } end,
+        RegisterStash = function(_, id, label, slots, weight)
+            local old = M.stashes[id]
+            M.stashes[id] = { label = label, slots = slots, weight = weight, items = old and old.items or nil }
+        end,
         registerHook = function(_, name, fn) M.hooks[name] = fn return 1 end,
         forceOpenInventory = function(_, src, typ, id) M.opened[#M.opened + 1] = { src = src, type = typ, id = id } end,
         Items = function() return { weapon_pistol = { name = 'weapon_pistol', label = 'Pistolet' }, black_money = { name = 'black_money', label = 'Argent sale' },
@@ -146,7 +155,35 @@ function GetCurrentResourceName() return 'elyzea_illegal' end
 function GetPlayerName(src) local p = M.players[tonumber(src) or -1] return p and p.name or nil end
 function GetPlayers() local t = {} for src in pairs(M.players) do t[#t + 1] = tostring(src) end return t end
 function GetPlayerPed(src) return M.players[tonumber(src)] and tonumber(src) or 0 end
-function GetEntityCoords(ped) return M.players[ped].coords end
+-- Entités créées par le serveur (gardes) : ids à partir de 1000
+M.entities = {}
+local entSeq = 1000
+function GetEntityCoords(ent)
+    if M.players[ent] then return M.players[ent].coords end
+    return M.entities[ent] and M.entities[ent].coords or vector3(0, 0, 0)
+end
+function CreatePed(_, hash, x, y, z, h)
+    entSeq = entSeq + 1
+    M.entities[entSeq] = { coords = vector3(x, y, z), health = 200, hash = hash, state = {} }
+    return entSeq
+end
+function DoesEntityExist(e) return M.entities[e] ~= nil end
+function GetEntityHealth(e) return M.entities[e] and M.entities[e].health or 0 end
+function DeleteEntity(e) M.entities[e] = nil end
+function NetworkGetEntityFromNetworkId(id) return id end
+function NetworkGetNetworkIdFromEntity(e) return e end
+function GiveWeaponToPed() end
+function SetPedArmour() end
+function Entity(e)
+    local ent = M.entities[e] or { state = {} }
+    return { state = setmetatable({ set = function(self, k, v) ent.state[k] = v end }, { __index = ent.state }) }
+end
+function GetHashKey(s)
+    local h = 0
+    for i = 1, #s do h = (h * 31 + s:upper():byte(i)) % 4294967296 end
+    return h > 2147483647 and h - 4294967296 or h
+end
+joaat = GetHashKey
 function GetEntityHeading(ped) return M.players[ped].heading end
 local timer = 0
 function GetGameTimer() timer = timer + 1 return timer end

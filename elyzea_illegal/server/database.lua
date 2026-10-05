@@ -28,6 +28,12 @@ function DB.install()
         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'illegal_order_requests']]) or {}) do cols[r.c] = true end
     if not cols.ready_at then MySQL.query.await('ALTER TABLE illegal_order_requests ADD COLUMN ready_at INT UNSIGNED NULL') end
     if not cols.spot then MySQL.query.await('ALTER TABLE illegal_order_requests ADD COLUMN spot LONGTEXT NULL') end
+    -- Progression des groupes (missions) : niveau et XP dans le niveau
+    local gcols = {}
+    for _, r in ipairs(MySQL.query.await([[SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'illegal_groups']]) or {}) do gcols[r.c] = true end
+    if not gcols.mission_level then MySQL.query.await('ALTER TABLE illegal_groups ADD COLUMN mission_level INT UNSIGNED NOT NULL DEFAULT 0') end
+    if not gcols.mission_xp then MySQL.query.await('ALTER TABLE illegal_groups ADD COLUMN mission_xp INT UNSIGNED NOT NULL DEFAULT 0') end
     return true
 end
 
@@ -256,6 +262,47 @@ end
 
 function DB.deleteSpot(id)
     return MySQL.update.await('DELETE FROM illegal_delivery_spots WHERE id = ?', { id })
+end
+
+-- ---------------------------------------------------------
+--  Missions : configurations, réglages, progression, historique
+-- ---------------------------------------------------------
+function DB.loadMissions()
+    return {
+        missions = MySQL.query.await('SELECT id, type, config FROM illegal_missions') or {},
+        settings = MySQL.query.await('SELECT name, value FROM illegal_settings') or {},
+        progress = MySQL.query.await('SELECT id, mission_level, mission_xp FROM illegal_groups') or {},
+        runs = MySQL.query.await([[SELECT mission_id, group_id, participants, UNIX_TIMESTAMP(ended_at) AS ended FROM illegal_mission_runs
+            WHERE ended_at IS NOT NULL AND ended_at > NOW() - INTERVAL 2 DAY]]) or {},
+    }
+end
+
+-- Missions restées « en cours » au dernier arrêt du serveur
+function DB.closeStaleRuns()
+    MySQL.update.await("UPDATE illegal_mission_runs SET status = 'failed', ended_at = NOW() WHERE status = 'active'")
+end
+
+function DB.saveMission(id, typ, config)
+    return MySQL.query.await('INSERT INTO illegal_missions (id, type, config) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE type = VALUES(type), config = VALUES(config)',
+        { id, typ, json.encode(config) })
+end
+
+function DB.saveSetting(name, value)
+    return MySQL.query.await('INSERT INTO illegal_settings (name, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)', { name, json.encode(value) })
+end
+
+function DB.saveProgress(groupId, level, xp)
+    return MySQL.update.await('UPDATE illegal_groups SET mission_level = ?, mission_xp = ? WHERE id = ?', { level, xp, groupId })
+end
+
+function DB.insertRun(r)
+    return MySQL.insert.await('INSERT INTO illegal_mission_runs (mission_id, group_id, starter_cid, participants, location, status) VALUES (?, ?, ?, ?, ?, ?)',
+        { r.missionId, r.groupId, r.starterCid, json.encode(r.participantList or {}), r.locationLabel or '', 'active' })
+end
+
+function DB.endRun(id, status, reward, xp, participants)
+    MySQL.update('UPDATE illegal_mission_runs SET status = ?, reward = ?, xp = ?, participants = ?, ended_at = NOW() WHERE id = ?',
+        { status, json.encode(reward or {}), xp or 0, json.encode(participants or {}), id })
 end
 
 -- ---------------------------------------------------------

@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS `illegal_groups` (
     `description` VARCHAR(500) NOT NULL DEFAULT '',
     `color`       VARCHAR(7)   NOT NULL DEFAULT '#e0433b',
     `settings`    LONGTEXT     NULL,
+    `mission_level` INT UNSIGNED NOT NULL DEFAULT 0,
+    `mission_xp`  INT UNSIGNED NOT NULL DEFAULT 0,
     `created_by`  VARCHAR(64)  NULL,
     `created_at`  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -159,6 +161,40 @@ CREATE TABLE IF NOT EXISTS `illegal_delivery_spots` (
     `z`           DOUBLE       NOT NULL,
     `heading`     DOUBLE       NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Missions illégales : configuration de chaque mission (JSON modifié dans admin_menu › ILLEGAL › Missions)
+CREATE TABLE IF NOT EXISTS `illegal_missions` (
+    `id`          VARCHAR(32)  NOT NULL,
+    `type`        VARCHAR(32)  NOT NULL,
+    `config`      LONGTEXT     NOT NULL,
+    `updated_at`  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Réglages globaux (ex. « levels » : paliers de niveau des groupes)
+CREATE TABLE IF NOT EXISTS `illegal_settings` (
+    `name`        VARCHAR(32)  NOT NULL,
+    `value`       LONGTEXT     NOT NULL,
+    PRIMARY KEY (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Historique des missions (sert aussi aux cooldowns après un redémarrage)
+CREATE TABLE IF NOT EXISTS `illegal_mission_runs` (
+    `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `mission_id`   VARCHAR(32)  NOT NULL,
+    `group_id`     INT UNSIGNED NOT NULL,
+    `starter_cid`  VARCHAR(50)  NOT NULL,
+    `participants` LONGTEXT     NULL,
+    `location`     VARCHAR(64)  NOT NULL DEFAULT '',
+    `status`       VARCHAR(12)  NOT NULL DEFAULT 'active',
+    `reward`       LONGTEXT     NULL,
+    `xp`           INT          NOT NULL DEFAULT 0,
+    `started_at`   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `ended_at`     TIMESTAMP    NULL DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `idx_illegal_runs_mission` (`mission_id`, `ended_at`),
+    CONSTRAINT `fk_illegal_runs_group` FOREIGN KEY (`group_id`) REFERENCES `illegal_groups` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Journal : group_id NULL = action générale (ex. suppression d'un groupe)

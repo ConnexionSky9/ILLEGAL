@@ -129,6 +129,20 @@ function Finances.adminAdjust(actor, g, account, amount, add, reason)
     return true, ('%s %s.'):format(U.money(amount), add and 'ajoutés' or 'retirés')
 end
 
+-- Récompense de mission : versée au coffre du groupe (jamais au joueur)
+function Finances.missionReward(actor, g, account, amount, label)
+    if not validAccount(account) then return false, 'Compte invalide.' end
+    amount = U.amount(amount)
+    if not amount then return false, 'Montant invalide.' end
+    if not Finances.lock(g.id) then return false, 'Une opération est déjà en cours.' end
+    local before = g.finance[account]
+    local ok = Finances.credit(g, account, amount)
+    if ok then record(g, actor, account, 'mission', amount, before, label) end
+    Finances.unlock(g.id)
+    if ok then Sync.group(g.id) end
+    return ok, ok and nil or 'Erreur de la base de données.'
+end
+
 -- Paiement d'une commande validée (débit sous verrou + historique)
 function Finances.payOrder(actor, g, account, amount, label)
     if not validAccount(account) then return false, 'Compte invalide.' end

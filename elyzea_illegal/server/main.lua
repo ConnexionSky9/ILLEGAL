@@ -6,8 +6,8 @@ local Loaded = {}   -- [src] = citizenid (pour la dernière connexion à la déc
 -- Tous les fichiers serveur sont-ils chargés ? (après une mise à jour qui ajoute des fichiers,
 -- FiveM ne relit fxmanifest.lua qu'après « refresh » : un simple « restart » ne suffit pas)
 local REQUIRED = { 'DB', 'Log', 'Players', 'Cache', 'Sync', 'Groups', 'Grades', 'Members', 'Finances', 'Peds', 'Orders',
-    'Deliveries', 'Stashes', 'Tablet' }
-local FILES = { Deliveries = 'server/deliveries.lua', Stashes = 'server/stashes.lua', Tablet = 'server/tablet.lua' }
+    'Deliveries', 'Stashes', 'Missions', 'Tablet' }
+local FILES = { Deliveries = 'server/deliveries.lua', Stashes = 'server/stashes.lua', Missions = 'server/missions/core.lua', Tablet = 'server/tablet.lua' }
 local missing = {}
 for _, name in ipairs(REQUIRED) do if _G[name] == nil then missing[#missing + 1] = FILES[name] or name end end
 if #missing > 0 then
@@ -20,6 +20,7 @@ CreateThread(function()
     Cache.load()
     Sync.peds()   -- joueurs déjà connectés (redémarrage de la ressource)
     if Stashes then Stashes.registerAll() Stashes.sync() end
+    if Missions then Missions.load() end
     for _, p in ipairs(GetPlayers()) do
         local src = tonumber(p)
         local cid = Players.cid(src)

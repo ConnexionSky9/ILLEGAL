@@ -72,6 +72,34 @@ membres (promouvoir, rétrograder, changer de grade, expulser, profil, recruter 
 supprimer, réorganiser, permissions), finances (argent propre / sale séparés, dépôt, retrait, historique),
 commandes (catalogue, commander, suivi de livraison, bouton « 📍 GPS ») et paramètres. Chaque bouton n'apparaît que si le grade le permet.
 
+## Missions illégales
+**Staff : ADMIN › ILLEGAL › Groupes / Missions**
+- **Groupes** : liste des groupes (comme avant) + **progression** de chacun (niveau, XP x / y) avec `+ XP`, `− XP`, `Définir XP`, `Définir niveau`, `Réinitialiser`.
+- **Missions** : missions en cours (arrêt possible), liste des missions, **niveaux** (ajouter / supprimer le dernier = niveau max, nom, XP requise).
+- **Configurer une mission** : Général · Groupes autorisés · Progression · Emplacements · Gardes · Armes · Colis · Livraison · Timer · Récompenses · Téléphone · Cooldown · Sécurité.
+  Emplacements et points de livraison se placent à ta position (📍), avec positions des gardes (« + Garde ici »), activation, coordonnées, rayon, téléportation.
+
+**Joueurs : tablette F5 › Missions** : niveau et XP du groupe, missions débloquées (🟢) ou verrouillées (🔒 niveau requis, XP manquante),
+cooldown, lancement (permission de grade « Lancer une mission illégale », le chef l'a toujours), mission en cours (rejoindre / abandonner).
+
+**Colis test** : message du numéro inconnu → emplacement tiré au hasard (GPS + zone) → timer (15 min) → 6 gardes (4 au poing, 2 au couteau) →
+**ALT** « Fouiller le garde » sur les gardes neutralisés (ox_target s'il est installé, sinon maintenir ALT puis E) → clé → **ALT** « Ouvrir le colis »
+(animation) → nouveau GPS vers le point de livraison le plus proche du lancement → **ALT** « Livrer le colis » au PNJ → « Merci pour le service rendu ! »
+→ **MISSION TERMINÉE** → argent + objets dans le **coffre du groupe** (une seule fois, jamais au joueur) → **+XP au groupe** → level-up automatique.
+À 0 : mission échouée, tout est nettoyé, aucune récompense.
+
+- Gardes : modèle, arme, santé, armure, précision, comportement (passif / méfiant / agressif / très agressif), distances de détection,
+  d'agression et de poursuite, retour à la position, poursuite autorisée — créés par le serveur, synchronisés pour tous les participants.
+- Clé : garde précis, garde au hasard ou probabilité par fouille ; **toujours trouvable** (dernier garde fouillé, porteur disparu → clé au suivant,
+  surbrillance après X fouilles ratées).
+- Armes : armes à feu / blanches / explosifs / véhicules autorisés ou non → rien / avertissement / échec (dégâts sur les gardes contrôlés par le serveur).
+- Participants : membres du groupe proches du lanceur (rayon réglable), min / max, rejoindre en cours ; porteur du colis déconnecté → le colis passe à un autre.
+- Cooldowns mission / groupe / joueur (serveur, conservés après redémarrage via l'historique).
+- **Ajouter une mission** : `server/missions/<type>.lua` (`Missions.registerType` + `Missions.registerDefault`) et `client/missions/<type>.lua`
+  (`MissionClient.registerType`) ; le moteur (`server/missions/core.lua`) gère niveaux, groupes, cooldowns, participants, timer, récompenses, téléphone, logs.
+- Réutilise l'existant : finances du groupe (`Finances.missionReward`), inventaire du coffre (`Stashes.addItem`), téléphone (`PhoneNotify` / lb-phone),
+  invite et notifications du MenuStaff, logs (`Log` → onglet Logs du menu + Discord), oxmysql.
+
 ## Interfaces
 Même design que le MenuStaff (styles repris tels quels de `admin_menu/html/style.css`) : tablette du groupe, fenêtres,
 notifications, menu **F5** (panneau du menu rapide F9) et invite **[E]** « APPUYER POUR … » + nom en doré
@@ -119,6 +147,8 @@ server/cache.lua      données en mémoire (aucune requête pour lire)
 server/groups|grades|members|finances|peds|orders.lua   services réutilisables
 server/deliveries.lua livraison des commandes (lieux, préparation, ramassage du sac)
 server/stashes.lua    coffre du groupe (ox_inventory, accès par grade)
+server/missions/      moteur des missions (core.lua) et missions (colis.lua)
+client/missions/      HUD, ALT, IA des gardes (core.lua) et déroulé client des missions (colis.lua)
 server/tablet.lua     actions des joueurs (contrôles de sécurité)
 server/admin.lua      exports AdminData / AdminAction pour admin_menu
 server/sync.lua       mise à jour des tablettes ouvertes, du F5 et des PED
@@ -128,4 +158,4 @@ html/                 tablette du groupe
 
 ## Tests (hors jeu)
 Depuis la racine du dépôt : `lua5.4 tests/run.lua` (serveur : permissions, hiérarchie, argent, isolation des groupes, persistance…),
-`lua5.4 tests/bridge.lua` (pont admin_menu, coffres), `lua5.4 tests/startup.lua` (fichiers manquants) et `FIXTURES=/tmp/fx lua5.4 tests/run.lua && FIXTURES=/tmp/fx node tests/ui.js` (rendu des interfaces).
+`lua5.4 tests/bridge.lua` (pont admin_menu, coffres), `lua5.4 tests/startup.lua` (fichiers manquants), `lua5.4 tests/missions.lua` (missions) et `FIXTURES=/tmp/fx lua5.4 tests/run.lua && FIXTURES=/tmp/fx node tests/ui.js` (rendu des interfaces).

@@ -17,13 +17,13 @@ end
 -- ---------------------------------------------------------
 Prompt = {}
 local promptOwner, promptSig
-function Prompt.show(owner, verb, name, key)
+function Prompt.show(owner, verb, name, key, muted)
     if promptOwner and promptOwner ~= owner then return end   -- une autre invite est déjà affichée
-    local sig = ('%s|%s|%s'):format(verb, name, key or 'E')
+    local sig = ('%s|%s|%s|%s'):format(verb, name, key or 'E', tostring(muted))
     promptOwner = owner
     if sig == promptSig then return end
     promptSig = sig
-    SendNUIMessage({ action = 'prompt', show = true, key = key or 'E', verb = verb, name = name })
+    SendNUIMessage({ action = 'prompt', show = true, key = key or 'E', verb = verb, name = name, muted = muted == true })
 end
 function Prompt.hide(owner)
     if not promptOwner or (owner and promptOwner ~= owner) then return end

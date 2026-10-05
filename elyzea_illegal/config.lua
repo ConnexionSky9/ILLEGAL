@@ -120,6 +120,50 @@ Config.Stash = {
     spawnDistance = 50.0,    -- l'objet n'existe chez le joueur qu'à cette distance
 }
 
+-- ---------------------------------------------------------
+--  Missions illégales (admin_menu › ILLEGAL › Missions)
+--  Tout se règle en jeu ; ici seulement les valeurs de départ,
+--  utilisées à la première installation.
+-- ---------------------------------------------------------
+Config.Missions = {
+    -- Niveaux des groupes : « xp » = XP à gagner pour atteindre ce niveau depuis le précédent
+    levels = {
+        { label = 'Inconnus',       xp = 0 },
+        { label = 'Petites frappes', xp = 100 },
+        { label = 'Réseau',         xp = 250 },
+        { label = 'Organisés',      xp = 500 },
+        { label = 'Redoutés',       xp = 1000 },
+        { label = 'Intouchables',   xp = 2000 },
+    },
+    levelUpMessage = 'Ton groupe passe niveau {level} ({label}).',
+    behaviors = {
+        { key = 'passive',         label = 'Passif (n\'attaque jamais)' },
+        { key = 'wary',            label = 'Méfiant (agressif si on s\'approche)' },
+        { key = 'aggressive',      label = 'Agressif (attaque, ne poursuit pas)' },
+        { key = 'very_aggressive', label = 'Très agressif (attaque et poursuit)' },
+    },
+    weaponActions = {
+        { key = 'none', label = 'Rien' }, { key = 'warn', label = 'Avertissement' }, { key = 'fail', label = 'Échec de la mission' },
+    },
+    -- Mission « Colis test » : emplacements et points de livraison de départ (coordonnées approximatives :
+    -- remplace-les en jeu, admin_menu › ILLEGAL › Missions › Colis test › Emplacements / Livraison)
+    colisDefaults = {
+        locations = {
+            { label = 'Entrepôt du port',     x = 1015.0, y = -3105.0, z = 5.9,  h = 90.0,  radius = 30.0, enabled = true, guards = {} },
+            { label = 'Casse de Joshua Road', x = 2350.0, y = 3050.0,  z = 48.2, h = 270.0, radius = 30.0, enabled = true, guards = {} },
+            { label = 'Lit de la rivière',    x = 640.0,  y = -1260.0, z = 10.5, h = 180.0, radius = 30.0, enabled = true, guards = {} },
+        },
+        deliveries = {
+            { label = 'Ruelle de Strawberry', x = 166.0, y = -1307.0, z = 29.3, h = 240.0, enabled = true, ped = 'g_m_m_armboss_01',
+              scenario = 'WORLD_HUMAN_SMOKING', animDict = 'mp_common', animName = 'givetake1_a', blipSprite = 478, blipColor = 5,
+              distance = 2.0, text = 'Livrer le colis' },
+            { label = 'Parking de Sandy Shores', x = 1961.0, y = 3740.0, z = 32.3, h = 300.0, enabled = true, ped = 'g_m_m_armboss_01',
+              scenario = 'WORLD_HUMAN_SMOKING', animDict = 'mp_common', animName = 'givetake1_a', blipSprite = 478, blipColor = 5,
+              distance = 2.0, text = 'Livrer le colis' },
+        },
+    },
+}
+
 -- Notification « téléphone » : lb-phone est détecté automatiquement, sinon notification ox_lib.
 -- Pour un autre téléphone, remplace cette fonction (côté client) :
 --   Config.PhoneNotify = function(title, message) exports['mon-phone']:Notify(title, message) end

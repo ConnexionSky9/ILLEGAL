@@ -7,7 +7,7 @@ local M = require('mocks')
 local ROOT = 'elyzea_illegal/'
 for _, f in ipairs({ 'config.lua', 'shared/constants.lua', 'shared/utils.lua' }) do dofile(ROOT .. f) end
 dofile('tests/db_memory.lua')
-for _, f in ipairs({ 'logs', 'players', 'cache', 'sync', 'groups', 'grades', 'members', 'finances', 'peds', 'orders', 'deliveries', 'stashes', 'tablet', 'admin', 'main' }) do
+for _, f in ipairs({ 'logs', 'players', 'cache', 'sync', 'groups', 'grades', 'members', 'finances', 'peds', 'orders', 'deliveries', 'stashes', 'missions/core', 'missions/colis', 'tablet', 'admin', 'main' }) do
     dofile(ROOT .. 'server/' .. f .. '.lua')
 end
 M.flush()

@@ -24,6 +24,20 @@ local function register(g)
     end)
 end
 
+-- Ajoute des objets dans le coffre du groupe (récompenses de mission).
+-- Sans coffre placé, l'inventaire est quand même créé : son contenu apparaît quand le staff place le coffre.
+function Stashes.addItem(g, item, count)
+    if not oxStarted() then return false end
+    if g.stash then register(g)
+    else
+        pcall(function()
+            exports.ox_inventory:RegisterStash(Stashes.invId(g.id), ('%s · Coffre'):format(g.label), S.defaultSlots, S.defaultWeight * 1000, false)
+        end)
+    end
+    local ok, res = pcall(function() return exports.ox_inventory:AddItem(Stashes.invId(g.id), item, count) end)
+    return ok and res == true
+end
+
 -- Qui peut ouvrir le coffre de ce groupe, et est-il à côté ?
 function Stashes.canOpen(src, g)
     if not g or not g.stash then return false end

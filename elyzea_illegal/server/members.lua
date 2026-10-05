@@ -63,6 +63,7 @@ function Members.remove(actor, g, cid)
 
     Log(actor, g.id, 'Exclusion', ('%s a exclu %s de %s'):format(actor.name, memberLabel(m), g.label))
     local src = Players.bySrcCid(cid)
+    if src and Missions then Missions.leave(src, 'Tu ne fais plus partie du groupe.') end
     if src then
         Players.notify(src, ('Tu ne fais plus partie de %s.'):format(g.label), 'error')
         if Sessions[src] then Sessions[src] = nil TriggerClientEvent('illegal:client:close', src) end
@@ -86,6 +87,7 @@ function Members.leave(actor, g)
     end
     if DB.deleteMember(actor.cid) == nil then return false, 'Erreur de la base de données.' end
     g.members[actor.cid], Cache.memberOf[actor.cid] = nil, nil
+    if Missions then Missions.leave(actor.src, 'Tu as quitté le groupe.') end
     Sessions[actor.src] = nil
     TriggerClientEvent('illegal:client:close', actor.src)
     Log(actor, g.id, 'Départ', ('%s a quitté %s'):format(actor.name, g.label))

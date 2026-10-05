@@ -384,3 +384,34 @@ input[type=color].input { padding: 3px; height: 38px; }
 .q-group strong { display: block; font-family: var(--brand); font-size: 17px; color: var(--gold-hi); letter-spacing: .03em; }
 .q-group span { color: var(--muted); font-size: 12px; }
 .q-close { margin-left: auto; }
+
+
+/* ---------- Missions : barre de progression et compte à rebours (repris du MenuStaff) ---------- */
+#dprogress { position: fixed; left: 50%; bottom: 14vh; transform: translateX(-50%); width: min(420px, 86vw); z-index: 61; pointer-events: none; text-align: center; }
+#dprogress .dp-lab { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; text-shadow: 0 1px 4px #000; }
+#dprogress .dp-lab b { font: 700 17px var(--brand); letter-spacing: .05em; color: var(--gold-hi); }
+#dprogress .dp-lab span { font: 700 15px var(--display); color: var(--text); }
+#dprogress .dp-track { height: 10px; border-radius: 10px; background: rgba(10,14,24,.9); box-shadow: 0 0 0 1px rgba(217,181,106,.5), 0 0 0 2px #000; overflow: hidden; }
+#dprogress .dp-track i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #9c7a3c, var(--signal), var(--gold-hi)); }
+#dprogress small { display: block; margin-top: 6px; color: var(--muted); font: 500 12px var(--body); text-shadow: 0 1px 3px #000; }
+#missionhud { position: fixed; top: 22px; left: 50%; transform: translateX(-50%); z-index: 75; pointer-events: none; text-align: center;
+    background: rgba(10, 15, 27, .9); border: 1px solid rgba(224, 67, 59, .55); border-radius: 12px; padding: 10px 26px 12px; min-width: 260px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+.jh-title { font-family: var(--brand); color: #ff9b94; font-size: 14px; font-weight: 700; }
+.jh-time { font-family: var(--display); font-size: 40px; font-weight: 700; line-height: 1.1; }
+.jh-reason { color: var(--muted); font-size: 13px; max-width: 420px; }
+#missionhud { border-color: rgba(217, 181, 106, .55); }
+#missionhud .jh-title { color: var(--gold-hi); }
+#missionhud .jh-time.low { color: var(--danger); }
+#missionhud .mh-stage { font-family: var(--display); font-size: 16px; font-weight: 600; color: var(--text); margin-top: 2px; }
+#missionend { position: fixed; top: 22vh; left: 50%; transform: translateX(-50%); z-index: 76; pointer-events: none; text-align: center;
+    background: rgba(10, 15, 27, .92); border: 1px solid rgba(217, 181, 106, .55); border-radius: 14px; padding: 16px 40px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.55); animation: promptIn .25s ease-out; }
+#missionend b { display: block; font: 700 30px var(--brand); letter-spacing: .06em; color: var(--gold-hi); }
+#missionend.fail { border-color: rgba(224, 67, 59, .6); }
+#missionend.fail b { color: #ff9b94; }
+#missionend span { color: var(--muted); font-size: 14px; }
+.mbar { height: 8px; border-radius: 6px; background: var(--panel-2); overflow: hidden; margin-top: 8px; }
+.mbar i { display: block; height: 100%; background: linear-gradient(90deg, #9c7a3c, var(--signal), var(--gold-hi)); }
+.mcard.locked { opacity: .75; }
+.mcard .lock { color: var(--danger); font-family: var(--display); font-weight: 700; letter-spacing: .06em; }

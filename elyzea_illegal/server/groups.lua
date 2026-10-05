@@ -97,6 +97,7 @@ function Groups.delete(actor, g, confirmName)
     if confirmName ~= g.name then return false, 'Confirmation incorrecte : tape le nom interne exact du groupe.' end
     if not DB.deleteGroup(g.id) then return false, 'Erreur de la base de données : groupe non supprimé.' end
     local members, hadPed, hadStash = {}, g.ped ~= nil, g.stash ~= nil
+    if Missions then Missions.onGroupDeleted(g.id) end
     for cid in pairs(g.members) do members[#members + 1] = cid end
     Cache.forgetGroup(g)
 
