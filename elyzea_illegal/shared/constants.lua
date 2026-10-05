@@ -3,6 +3,41 @@
 -- =========================================================
 Illegal = Illegal or {}
 
+-- ---------------------------------------------------------
+--  Réglages ajoutés au fil des versions : si ton config.lua est
+--  plus ancien, les valeurs manquantes sont complétées ici.
+-- ---------------------------------------------------------
+local function fill(dst, src)
+    for k, v in pairs(src) do
+        if dst[k] == nil then dst[k] = v
+        elseif type(v) == 'table' and type(dst[k]) == 'table' and v[1] == nil then fill(dst[k], v) end
+    end
+    return dst
+end
+Config = Config or {}
+fill(Config, {
+    Orders = { requireValidation = false, playerCanCreate = false },
+    Delivery = {
+        prepareMinutes = 5, minDistance = 1500.0, maxActivePerPlayer = 1, spawnDistance = 150.0, pickupDistance = 2.0,
+        bossModel = 'g_m_m_chicold_01', guardModels = { 'g_m_y_mexgoon_02', 'g_m_y_mexgoon_03', 'g_m_m_mexboss_01' },
+        guardWeapons = { 'WEAPON_CARBINERIFLE', 'WEAPON_SMG' }, guardCount = 5, guardScenario = 'WORLD_HUMAN_GUARD_STAND',
+        bossAnim = { dict = 'amb@world_human_hang_out_street@female_arms_crossed@base', name = 'base' },
+        bagModel = 'prop_cs_heist_bag_02', blip = { sprite = 501, color = 1, scale = 0.9, label = 'Commande illégale' },
+        defaultSpots = {
+            { label = 'Port - conteneurs', x = 1015.0, y = -3105.0, z = 5.9, h = 90.0 },
+            { label = 'Casse de Joshua Road', x = 2350.0, y = 3050.0, z = 48.2, h = 270.0 },
+            { label = 'Scierie de Paleto', x = -575.0, y = 5325.0, z = 70.2, h = 160.0 },
+        },
+    },
+    Stash = {
+        models = {
+            { model = 'prop_ld_int_safe_01', label = 'Coffre-fort' }, { model = 'p_v_43_safe_s', label = 'Petit coffre-fort' },
+            { model = 'prop_mil_crate_01', label = 'Caisse militaire' }, { model = 'prop_box_wood02a', label = 'Caisse en bois' },
+        },
+        defaultWeight = 500, defaultSlots = 50, maxWeight = 100000, maxSlots = 500, interactDistance = 2.0, spawnDistance = 50.0,
+    },
+})
+
 -- Permissions des grades (cochées grade par grade, dans la tablette ou le menu staff).
 -- Un grade « chef » (boss) les a toutes, toujours.
 Illegal.Permissions = {
@@ -20,6 +55,7 @@ Illegal.Permissions = {
     { key = 'orders_place',    label = 'Passer une commande',              cat = 'Commandes' },
     { key = 'orders_manage',   label = 'Créer / configurer les commandes', cat = 'Commandes' },
     { key = 'orders_validate', label = 'Valider / refuser les commandes',  cat = 'Commandes' },
+    { key = 'stash',           label = 'Accès au coffre du groupe',        cat = 'Coffre' },
     { key = 'settings',        label = 'Paramètres du groupe',             cat = 'Configuration' },
 }
 

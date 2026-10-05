@@ -61,6 +61,11 @@ function Cache.newRequest(row)
     }
 end
 
+function Cache.newStash(row)
+    return { label = row.label or 'Coffre', model = row.model, x = row.x + 0.0, y = row.y + 0.0, z = row.z + 0.0, h = (row.heading or 0) + 0.0,
+        weight = tonumber(row.weight) or 500, slots = tonumber(row.slots) or 50, version = 1 }
+end
+
 function Cache.newSpot(row)
     return { id = row.id, label = row.label or '', x = row.x + 0.0, y = row.y + 0.0, z = row.z + 0.0, h = (row.heading or 0) + 0.0 }
 end
@@ -94,6 +99,10 @@ function Cache.load()
     for _, r in ipairs(d.orders) do Cache.orders[r.id] = Cache.newOrder(r) end
     for _, r in ipairs(d.requests) do Cache.requests[r.id] = Cache.newRequest(r) end
     for _, r in ipairs(d.spots or {}) do Cache.spots[r.id] = Cache.newSpot(r) end
+    for _, r in ipairs(d.stashes or {}) do
+        local g = Cache.groups[r.group_id]
+        if g then g.stash = Cache.newStash(r) end
+    end
     Cache.ready = true
 
     local n = 0

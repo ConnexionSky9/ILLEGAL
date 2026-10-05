@@ -3,7 +3,7 @@
 --  mêmes formes de lignes que oxmysql (JSON en texte, 0/1 pour les booléens),
 --  mêmes garde-fous (UNIQUE, solde jamais négatif, changement d'état conditionnel).
 -- =========================================================
-local T = { groups = {}, grades = {}, members = {}, finances = {}, tx = {}, peds = {}, orders = {}, requests = {}, logs = {}, spots = {} }
+local T = { groups = {}, grades = {}, members = {}, finances = {}, tx = {}, peds = {}, orders = {}, requests = {}, logs = {}, spots = {}, stashes = {} }
 local seq = 0
 local function nextId() seq = seq + 1 return seq end
 local function enc(t) return json.encode(t or {}) end
@@ -19,7 +19,7 @@ function DB.loadAll()
     local req = {}
     for _, r in pairs(T.requests) do req[#req + 1] = copy(r) end
     return { groups = list(T.groups), grades = list(T.grades), members = list(T.members), finances = list(T.finances),
-        peds = list(T.peds), orders = list(T.orders), requests = req, spots = list(T.spots) }
+        peds = list(T.peds), orders = list(T.orders), requests = req, spots = list(T.spots), stashes = list(T.stashes) }
 end
 
 local function txRows(groupId, beforeId, limit)
@@ -71,7 +71,7 @@ function DB.deleteGroup(id)
     for k, r in pairs(T.grades) do if r.group_id == id then T.grades[k] = nil end end
     for k, r in pairs(T.orders) do if r.group_id == id then T.orders[k] = nil end end
     for k, r in pairs(T.requests) do if r.group_id == id then T.requests[k] = nil end end
-    T.finances[id], T.peds[id], T.groups[id] = nil, nil, nil
+    T.finances[id], T.peds[id], T.groups[id], T.stashes[id] = nil, nil, nil, nil
     return true
 end
 
@@ -165,6 +165,11 @@ function DB.startDelivery(id, from, readyAt, spot, by)
     if by then r.handled_by = by end
     return true
 end
+function DB.saveStash(groupId, s)
+    T.stashes[groupId] = { group_id = groupId, label = s.label, model = s.model, x = s.x, y = s.y, z = s.z, heading = s.h, weight = s.weight, slots = s.slots }
+    return {}
+end
+function DB.deleteStash(groupId) T.stashes[groupId] = nil return 1 end
 function DB.insertSpot(s)
     local id = nextId()
     T.spots[id] = { id = id, label = s.label, x = s.x, y = s.y, z = s.z, heading = s.h }

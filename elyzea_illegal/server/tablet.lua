@@ -75,7 +75,8 @@ function Tablet.build(src)
     local data = {
         via = s.via, tabs = Tablet.tabsOf(s, g),
         group = { id = g.id, name = g.name, label = g.label, type = g.type, typeLabel = U.typeLabel(g.type), color = g.color,
-            description = g.description, memberCount = #members, og = og, created = g.created },
+            description = g.description, memberCount = #members, og = og, created = g.created,
+            stash = g.stash and { label = g.stash.label, weight = g.stash.weight, slots = g.stash.slots } or nil },
         me = { name = ctx.name, grade = grade.label, gradeId = grade.id, level = grade.level, boss = grade.boss, perms = perms },
         members = members, grades = grades,
         permissions = Illegal.Permissions, categories = Config.OrderCategories,

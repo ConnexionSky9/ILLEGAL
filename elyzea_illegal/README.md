@@ -14,6 +14,16 @@ Gangs, organisations et cartels pour Qbox (ox_lib, oxmysql, ox_inventory), admin
 5. En jeu : **F10 › ILLEGAL**. Le Fondateur a la permission d'office, le SuperAdmin la reçoit une fois ;
    pour les autres grades staff : onglet **Grades** du menu, permission « ILLEGAL » (catégorie *Illégal*).
 
+## Mise à jour
+Remplace **tout** le dossier `elyzea_illegal` (de nouveaux fichiers sont parfois ajoutés), puis dans la console serveur :
+```
+refresh
+ensure elyzea_illegal
+```
+`refresh` est obligatoire : sans lui, FiveM ne relit pas `fxmanifest.lua` et les nouveaux fichiers ne sont pas chargés.
+Au démarrage, la console indique en rouge `[ILLEGAL] Fichiers non chargés : …` s'il en manque un.
+Un ancien `config.lua` reste utilisable : les réglages ajoutés depuis sont complétés par défaut (`shared/constants.lua`).
+
 ## Ce qui a été ajouté dans admin_menu (et rien d'autre)
 | Fichier | Modification |
 |---|---|
@@ -46,6 +56,12 @@ demande une confirmation puis de taper son nom interne.
 - Le staff voit chaque livraison (statut, lieu, heure) et peut la **rendre prête tout de suite** (tests).
 - Téléphone : **lb-phone** détecté automatiquement, sinon notification ox_lib. Autre téléphone : `Config.PhoneNotify` dans `config.lua`.
 
+**Coffre du groupe** : *ILLEGAL › Gérer › Coffre › 📍 Placer un coffre à ma position* : nom, objet (coffre-fort, caisse…),
+**poids maximum (kg)** et **nombre de places** au choix, modifiables ensuite ; déplacer, téléporter, supprimer (le contenu est conservé
+et revient si un coffre est replacé). Les membres l'ouvrent avec **E** à côté. Accès : permission **« Accès au coffre du groupe »**
+des grades : le OG la donne aux grades qu'il veut depuis sa tablette (*Grades › Modifier*), le staff depuis *Grades › Permissions*.
+Le serveur vérifie groupe, grade et distance, et un hook ox_inventory bloque toute ouverture qui ne passe pas par là.
+
 **Coffres de l'éditeur de map** : *Éditeur de map › Coffres › Groupes illégaux* propose aussi les groupes créés dans ILLEGAL
 (suffixe « (Illégal) »), avec leurs grades comme grade minimum. Les gangs Qbox fonctionnent comme avant ;
 si un gang Qbox porte le même nom interne qu'un groupe ILLEGAL, seul le gang Qbox apparaît dans la liste.
@@ -67,7 +83,8 @@ commandes (catalogue, commander, suivi de livraison, bouton « 📍 GPS ») et p
 - Anti-spam sur toutes les actions ; les tentatives refusées sont écrites en console.
 
 ## Configuration (`config.lua`)
-Commandes (`Config.Orders` : validation obligatoire, création par les joueurs), livraison (`Config.Delivery` : délai, distance minimum,
+Coffre (`Config.Stash` : objets proposés, poids et places par défaut / maximum, distances),
+commandes (`Config.Orders` : validation obligatoire, création par les joueurs), livraison (`Config.Delivery` : délai, distance minimum,
 modèles et armes des PNJ, nombre de gardes, animations, sac, blip, lieux par défaut), téléphone (`Config.PhoneNotify`),
 compte de l'argent propre (`cash` / `bank`), argent sale (objet `black_money` ou compte), touche F5 et mode (`context` / `direct`),
 PED (modèle par défaut, distances, animation), types de groupes, catégories de commandes et grades créés par défaut pour chaque type.
@@ -96,6 +113,7 @@ server/database.lua   tout le SQL (oxmysql)
 server/cache.lua      données en mémoire (aucune requête pour lire)
 server/groups|grades|members|finances|peds|orders.lua   services réutilisables
 server/deliveries.lua livraison des commandes (lieux, préparation, ramassage du sac)
+server/stashes.lua    coffre du groupe (ox_inventory, accès par grade)
 server/tablet.lua     actions des joueurs (contrôles de sécurité)
 server/admin.lua      exports AdminData / AdminAction pour admin_menu
 server/sync.lua       mise à jour des tablettes ouvertes, du F5 et des PED
@@ -105,4 +123,4 @@ html/                 tablette du groupe
 
 ## Tests (hors jeu)
 Depuis la racine du dépôt : `lua5.4 tests/run.lua` (serveur : permissions, hiérarchie, argent, isolation des groupes, persistance…),
-`lua5.4 tests/bridge.lua` (pont admin_menu) et `FIXTURES=/tmp/fx lua5.4 tests/run.lua && FIXTURES=/tmp/fx node tests/ui.js` (rendu des interfaces).
+`lua5.4 tests/bridge.lua` (pont admin_menu, coffres), `lua5.4 tests/startup.lua` (fichiers manquants) et `FIXTURES=/tmp/fx lua5.4 tests/run.lua && FIXTURES=/tmp/fx node tests/ui.js` (rendu des interfaces).

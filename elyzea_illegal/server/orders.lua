@@ -137,6 +137,7 @@ function Orders.place(actor, g, orderId, quantity, account)
         if r.groupId == g.id and (r.status == 'pending' or r.status == 'preparing' or r.status == 'ready') then active = active + 1 end
     end
     if active >= Config.OrderMaxPending then return false, ('Déjà %d commandes en cours pour le groupe.'):format(active) end
+    if not Deliveries then return false, 'Livraisons indisponibles : préviens le staff (voir la console serveur).' end
     if Deliveries.activeCount(actor.cid) >= Config.Delivery.maxActivePerPlayer then
         return false, 'Tu as déjà une commande en cours : récupère-la avant d\'en passer une autre.'
     end
@@ -179,6 +180,7 @@ end
 function Orders.validate(actor, g, id)
     local r, err = getRequest(g, id, 'pending')
     if not r then return false, err end
+    if not Deliveries then return false, 'Livraisons indisponibles : préviens le staff (voir la console serveur).' end
     if Deliveries.activeCount(r.requesterCid) >= Config.Delivery.maxActivePerPlayer then
         return false, ('%s a déjà une livraison en cours.'):format(r.requester)
     end

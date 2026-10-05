@@ -7,7 +7,7 @@ local M = require('mocks')
 local ROOT = 'elyzea_illegal/'
 for _, f in ipairs({ 'config.lua', 'shared/constants.lua', 'shared/utils.lua' }) do dofile(ROOT .. f) end
 dofile('tests/db_memory.lua')
-for _, f in ipairs({ 'logs', 'players', 'cache', 'sync', 'groups', 'grades', 'members', 'finances', 'peds', 'orders', 'deliveries', 'tablet', 'admin', 'main' }) do
+for _, f in ipairs({ 'logs', 'players', 'cache', 'sync', 'groups', 'grades', 'members', 'finances', 'peds', 'orders', 'deliveries', 'stashes', 'tablet', 'admin', 'main' }) do
     dofile(ROOT .. 'server/' .. f .. '.lua')
 end
 M.flush()
@@ -358,6 +358,45 @@ local sid
 for id in pairs(Cache.spots) do sid = id end
 check(admin('removeSpot', { spotId = sid }) == true and #Deliveries.spots() == #Config.Delivery.defaultSpots, 'suppression : retour aux lieux par défaut')
 
+-- =========================================================
+section('Coffre du groupe')
+-- =========================================================
+M.players[99].coords = vector3(300, 300, 30)
+check(admin('setStash', { id = bloods.id, label = 'Planque', model = 'prop_ld_int_safe_01', weight = 0, slots = 10, useMyPosition = true }) == false, 'poids invalide refusé')
+check(admin('setStash', { id = bloods.id, label = 'Planque', model = 'prop_ld_int_safe_01', weight = 2000, slots = 9999, useMyPosition = true }) == false, 'trop de places refusé')
+check(admin('setStash', { id = bloods.id, label = 'Planque', model = 'prop_ld_int_safe_01', weight = 2000, slots = 120, useMyPosition = true }) == true, 'staff place un coffre (2000 kg, 120 places)')
+check(bloods.stash and bloods.stash.weight == 2000 and bloods.stash.slots == 120 and bloods.stash.x == 300, 'poids, places et position enregistrés')
+local inv = M.stashes['illegal_stash_' .. bloods.id]
+check(inv and inv.slots == 120 and inv.weight == 2000000, 'inventaire ox_inventory enregistré (poids en grammes)')
+local cs = M.lastClientEvent(-1, 'illegal:client:stashes')
+check(cs and #cs.args[1] == 1 and cs.args[1][1].groupId == bloods.id, 'coffre envoyé aux joueurs (affichage)')
+-- Accès : le OG oui ; le grade de Mike seulement si le OG lui donne la permission
+local mgrade = bloods.grades[bloods.members.CID_B.gradeId]
+local function openAs(src) local n0 = #M.opened M.fromClient(src, 'illegal:server:openStash', bloods.id) M.advance(5000) return #M.opened > n0 end
+M.players[1].coords = vector3(300, 301, 30)
+check(openAs(1), 'le OG ouvre le coffre')
+M.players[2].coords = vector3(300, 301, 30)
+local mperms = {} for k in pairs(mgrade.perms) do mperms[k] = true end
+mperms.stash = nil
+admin('updateGrade', { id = bloods.id, gradeId = mgrade.id, name = mgrade.name, label = mgrade.label, level = mgrade.level, perms = mperms })
+check(not openAs(2) and M.lastNotify(2):find('pas accès'), 'grade sans la permission « coffre » : refusé')
+open(1, 'f5')
+mgrade = bloods.grades[mgrade.id]
+local p2 = {} for k in pairs(mgrade.perms) do p2[k] = true end
+p2.stash = true
+act(1, 'updateGrade', { id = mgrade.id, name = mgrade.name, label = mgrade.label, level = mgrade.level, perms = p2 })
+check(bloods.grades[mgrade.id].perms.stash == true, 'le OG donne l\'accès au coffre au grade de Mike (tablette)')
+check(openAs(2), 'Mike ouvre maintenant le coffre')
+M.players[2].coords = vector3(400, 400, 30)
+check(not openAs(2), 'trop loin : refusé')
+M.players[3].coords = vector3(300, 301, 30)
+check(not openAs(3) and M.lastNotify(3):find('n\'appartient pas'), 'membre d\'un autre groupe : refusé')
+-- Hook ox_inventory : ouverture directe (triche) bloquée
+check(M.hooks.openInventory({ source = 3, inventoryId = 'illegal_stash_' .. bloods.id }) == false, 'hook : ouverture directe refusée à un autre groupe')
+check(M.hooks.openInventory({ source = 1, inventoryId = 'illegal_stash_' .. bloods.id }) == true, 'hook : ouverture autorisée au OG à côté')
+check(admin('setStash', { id = bloods.id, weight = 3000 }) == true and bloods.stash.weight == 3000 and bloods.stash.x == 300, 'poids modifié, position conservée')
+local stashId = bloods.id
+
 -- Données réelles pour le test de rendu des interfaces (tests/ui.js)
 local FIX = os.getenv('FIXTURES')
 if FIX then
@@ -399,6 +438,7 @@ for _, g in pairs(b2.grades) do if g.name == 'sergent' then s2 = g end end
 check(s2 and s2.perms.kick == snapshot.sergentPerms and s2.perms.recruit, 'permissions des grades rechargées')
 check(b2.ped and b2.ped.model == snapshot.ped and b2.ped.menu.orders and not b2.ped.menu.finances, 'PED et son menu rechargés')
 check(b2.settings.f5Tabs.finances == true, 'configuration F5 rechargée')
+check(b2.stash and b2.stash.weight == 3000 and b2.stash.slots == 120 and b2.stash.label == 'Planque', 'coffre rechargé (poids, places, nom)')
 local w2 = Cache.requests[wreq.id]
 check(w2 and w2.status == 'ready' and w2.spot and w2.spot.x == wreq.spot.x and w2.itemCount == 20, 'livraison prête rechargée (lieu, objets)')
 local v2 = Cache.requests[vreq.id]
@@ -415,6 +455,7 @@ check(admin('deleteGroup', { id = bloods.id, confirm = 'Bloods' }) == false and 
 check(admin('deleteGroup', { id = bloods.id, confirm = 'bloods' }) == true, 'suppression confirmée')
 check(Cache.byName('bloods') == nil and Cache.memberOf.CID_A == nil and Cache.memberOf.CID_B == nil, 'groupe et membres supprimés')
 check(DB._tables.peds[bloods.id] == nil and DB._tables.finances[bloods.id] == nil, 'PED et finances supprimés en base')
+check(DB._tables.stashes[stashId] == nil and #M.lastClientEvent(-1, 'illegal:client:stashes').args[1] == 0, 'coffre supprimé avec le groupe')
 check(Sessions[1] == nil and M.lastClientEvent(1, 'illegal:client:close'), 'tablette ouverte fermée')
 check(M.lastClientEvent(1, 'illegal:client:membership').args[1].inGroup == false, 'F5 de John mis à jour')
 check(M.res:AdminData(99).stats.groups == 2, 'dashboard à jour')

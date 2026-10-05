@@ -6,6 +6,7 @@
 --  illegal_groups ─┬─ illegal_grades ── illegal_members
 --                  ├─ illegal_finances ── illegal_transactions
 --                  ├─ illegal_peds
+--                  ├─ illegal_stashes
 --                  ├─ illegal_orders ── illegal_order_requests (livraison : ready_at, spot)
 --                  └─ illegal_logs
 --  Supprimer un groupe supprime tout le reste (ON DELETE CASCADE).
@@ -132,6 +133,21 @@ CREATE TABLE IF NOT EXISTS `illegal_order_requests` (
     PRIMARY KEY (`id`),
     KEY `idx_illegal_requests_group` (`group_id`, `status`),
     CONSTRAINT `fk_illegal_requests_group` FOREIGN KEY (`group_id`) REFERENCES `illegal_groups` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Coffre du groupe (inventaire ox_inventory « illegal_stash_<id> »)
+CREATE TABLE IF NOT EXISTS `illegal_stashes` (
+    `group_id`    INT UNSIGNED NOT NULL,
+    `label`       VARCHAR(64)  NOT NULL DEFAULT 'Coffre',
+    `model`       VARCHAR(64)  NOT NULL,
+    `x`           DOUBLE       NOT NULL,
+    `y`           DOUBLE       NOT NULL,
+    `z`           DOUBLE       NOT NULL,
+    `heading`     DOUBLE       NOT NULL DEFAULT 0,
+    `weight`      INT UNSIGNED NOT NULL DEFAULT 500,
+    `slots`       INT UNSIGNED NOT NULL DEFAULT 50,
+    PRIMARY KEY (`group_id`),
+    CONSTRAINT `fk_illegal_stashes_group` FOREIGN KEY (`group_id`) REFERENCES `illegal_groups` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Lieux de livraison des commandes (placés par le staff)

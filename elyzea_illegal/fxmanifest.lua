@@ -20,6 +20,7 @@ client_scripts {
     'client/f5.lua',
     'client/tablet.lua',
     'client/deliveries.lua',
+    'client/stashes.lua',
 }
 
 server_scripts {
@@ -36,6 +37,7 @@ server_scripts {
     'server/peds.lua',
     'server/orders.lua',
     'server/deliveries.lua',
+    'server/stashes.lua',
     'server/tablet.lua',
     'server/admin.lua',
     'server/main.lua',

@@ -3,10 +3,23 @@
 -- =========================================================
 local Loaded = {}   -- [src] = citizenid (pour la dernière connexion à la déconnexion)
 
+-- Tous les fichiers serveur sont-ils chargés ? (après une mise à jour qui ajoute des fichiers,
+-- FiveM ne relit fxmanifest.lua qu'après « refresh » : un simple « restart » ne suffit pas)
+local REQUIRED = { 'DB', 'Log', 'Players', 'Cache', 'Sync', 'Groups', 'Grades', 'Members', 'Finances', 'Peds', 'Orders',
+    'Deliveries', 'Stashes', 'Tablet' }
+local FILES = { Deliveries = 'server/deliveries.lua', Stashes = 'server/stashes.lua', Tablet = 'server/tablet.lua' }
+local missing = {}
+for _, name in ipairs(REQUIRED) do if _G[name] == nil then missing[#missing + 1] = FILES[name] or name end end
+if #missing > 0 then
+    print(('^1[ILLEGAL] Fichiers non chargés : %s^7'):format(table.concat(missing, ', ')))
+    print('^1[ILLEGAL] Vérifie qu\'ils sont bien dans resources/elyzea_illegal, puis dans la console serveur : refresh  puis  ensure elyzea_illegal^7')
+end
+
 CreateThread(function()
     DB.install()
     Cache.load()
     Sync.peds()   -- joueurs déjà connectés (redémarrage de la ressource)
+    if Stashes then Stashes.registerAll() Stashes.sync() end
     for _, p in ipairs(GetPlayers()) do
         local src = tonumber(p)
         local cid = Players.cid(src)
@@ -24,7 +37,8 @@ local function onLoaded(src)
     Members.touch(src)
     Sync.membership(src)
     Sync.peds(src)
-    Deliveries.resend(src)
+    if Stashes then Stashes.sync(src) end
+    if Deliveries then Deliveries.resend(src) end
 end
 
 -- Évènements serveur uniquement (AddEventHandler) : un client ne peut pas les déclencher
@@ -44,7 +58,8 @@ RegisterNetEvent('illegal:server:hello', function()
     local cid = Players.cid(src)
     if cid then Loaded[src] = cid end
     Sync.membership(src)
-    Deliveries.resend(src)
+    if Stashes then Stashes.sync(src) end
+    if Deliveries then Deliveries.resend(src) end
 end)
 
 -- Changement de personnage / déconnexion : on enregistre la dernière connexion

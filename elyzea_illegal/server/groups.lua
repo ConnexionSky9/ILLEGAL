@@ -87,7 +87,7 @@ function Groups.update(actor, g, data)
     g.label, g.type, g.description, g.color, g.settings = label, typ, description, color, settings
 
     Log(actor, g.id, 'Groupe modifié', ('%s (%s)'):format(label, g.name))
-    if renamed then Sync.allMembers(g) Sync.peds() end
+    if renamed then Sync.allMembers(g) Sync.peds() if Stashes then Stashes.refresh(g) end end
     Sync.group(g.id)
     return true, 'Groupe enregistré.'
 end
@@ -96,7 +96,7 @@ end
 function Groups.delete(actor, g, confirmName)
     if confirmName ~= g.name then return false, 'Confirmation incorrecte : tape le nom interne exact du groupe.' end
     if not DB.deleteGroup(g.id) then return false, 'Erreur de la base de données : groupe non supprimé.' end
-    local members, hadPed = {}, g.ped ~= nil
+    local members, hadPed, hadStash = {}, g.ped ~= nil, g.stash ~= nil
     for cid in pairs(g.members) do members[#members + 1] = cid end
     Cache.forgetGroup(g)
 
@@ -105,6 +105,7 @@ function Groups.delete(actor, g, confirmName)
     end
     for _, cid in ipairs(members) do Sync.player(cid) end
     if hadPed then Sync.peds() end
+    if hadStash and Stashes then Stashes.sync() end
     Log(actor, nil, 'Groupe supprimé', ('%s (%s) · %d membre(s)'):format(g.label, g.name, #members))
     return true, ('Groupe « %s » supprimé.'):format(g.label)
 end

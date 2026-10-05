@@ -48,6 +48,7 @@ function DB.loadAll()
             ready_at, spot, UNIX_TIMESTAMP(created_at) AS created FROM illegal_order_requests
             WHERE status IN ('pending', 'preparing', 'ready') OR created_at > NOW() - INTERVAL 7 DAY]]) or {},
         spots    = MySQL.query.await('SELECT id, label, x, y, z, heading FROM illegal_delivery_spots') or {},
+        stashes  = MySQL.query.await('SELECT group_id, label, model, x, y, z, heading, weight, slots FROM illegal_stashes') or {},
     }
 end
 
@@ -98,7 +99,7 @@ function DB.updateGroup(id, g)
 end
 
 function DB.deleteGroup(id)
-    -- Les membres référencent les grades : on les retire d'abord, le reste part en cascade
+    -- Les membres référencent les grades : on les retire d'abord, le reste part en cascade (coffre compris)
     return MySQL.transaction.await({
         { query = 'DELETE FROM illegal_members WHERE group_id = ?', values = { id } },
         { query = 'DELETE FROM illegal_groups WHERE id = ?', values = { id } },
@@ -231,6 +232,19 @@ end
 function DB.startDelivery(id, from, readyAt, spot, by)
     return MySQL.update.await([[UPDATE illegal_order_requests SET status = 'preparing', ready_at = ?, spot = ?, handled_by = COALESCE(?, handled_by), updated_at = NOW()
         WHERE id = ? AND status = ?]], { readyAt, json.encode(spot), by, id, from }) == 1
+end
+
+-- ---------------------------------------------------------
+--  Coffre du groupe
+-- ---------------------------------------------------------
+function DB.saveStash(groupId, s)
+    return MySQL.query.await([[INSERT INTO illegal_stashes (group_id, label, model, x, y, z, heading, weight, slots) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE label = VALUES(label), model = VALUES(model), x = VALUES(x), y = VALUES(y), z = VALUES(z), heading = VALUES(heading),
+        weight = VALUES(weight), slots = VALUES(slots)]], { groupId, s.label, s.model, s.x, s.y, s.z, s.h, s.weight, s.slots })
+end
+
+function DB.deleteStash(groupId)
+    return MySQL.update.await('DELETE FROM illegal_stashes WHERE group_id = ?', { groupId })
 end
 
 -- ---------------------------------------------------------

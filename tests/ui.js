@@ -74,7 +74,7 @@ const target = (attr, data) => ({ dataset: data, disabled: false, closest: (sel)
     for (const fx of ['admin_bloods', 'admin_vagos']) {
         setData(load(fx));
         vm.runInContext('render()', ctx);
-        for (const sub of ['info', 'members', 'grades', 'finances', 'ped', 'orders', 'settings']) {
+        for (const sub of ['info', 'members', 'grades', 'finances', 'ped', 'stash', 'orders', 'settings']) {
             click('data-ils', { ils: sub });
             clean(vm.runInContext('__html', ctx), `${fx} › ${sub}`);
         }

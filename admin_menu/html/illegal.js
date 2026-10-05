@@ -18,6 +18,7 @@
         { id: 'grades', label: 'Grades' },
         { id: 'finances', label: 'Finances' },
         { id: 'ped', label: 'PED' },
+        { id: 'stash', label: 'Coffre' },
         { id: 'orders', label: 'Commandes' },
         { id: 'settings', label: 'Paramètres' },
     ];
@@ -44,10 +45,11 @@
         if (d.normalized) return;
         ['groups', 'globalOrders', 'types', 'permissions', 'tabs', 'categories', 'spots'].forEach((k) => { d[k] = arr(d[k]); });
         if (d.items) IL.items = arr(d.items);
+        if (d.stashConfig) d.stashConfig.models = arr(d.stashConfig.models);
         d.groups.forEach((g) => { g.og = arr(g.og); });
         const g = d.selected;
         if (g) {
-            ['memberList', 'grades', 'orders', 'requests', 'logs', 'og'].forEach((k) => { g[k] = arr(g[k]); });
+            ['memberList', 'grades', 'orders', 'requests', 'logs', 'og', 'stashGrades'].forEach((k) => { g[k] = arr(g[k]); });
             g.finance.history = arr(g.finance.history);
             g.grades.forEach((gr) => { gr.perms = gr.perms && !Array.isArray(gr.perms) ? gr.perms : {}; });
         }
@@ -148,6 +150,7 @@
             <div class="stat" data-ils="finances"><b style="font-size:26px;color:var(--ok)">${money(g.clean)}</b><span>Argent propre</span></div>
             <div class="stat" data-ils="finances"><b style="font-size:26px;color:var(--danger)">${money(g.dirty)}</b><span>Argent sale</span></div>
             <div class="stat" data-ils="ped"><b style="font-size:20px">${g.ped ? esc(g.ped) : 'Aucun'}</b><span>PED</span></div>
+            <div class="stat" data-ils="stash"><b style="font-size:20px">${g.stashData ? `${g.stashData.weight} kg` : 'Aucun'}</b><span>Coffre${g.stashData ? ` · ${g.stashData.slots} places` : ''}</span></div>
         </div>
         <div class="section"><h2>Informations</h2>
             <table>
@@ -277,6 +280,35 @@
                 <p class="hint">Onglets de la tablette ouverts avec <b>E</b> à côté du PED (toujours limités par les permissions du grade).</p>
                 ${tabToggles('data-ilpm', IL.pedMenu)}
                 <div class="btn-row" style="margin-top:12px"><button class="btn primary" data-ila="savePedMenu">Enregistrer</button></div></div>`;
+    };
+
+    /* ---------- Coffre ---------- */
+    const stashModelLabel = (m) => (D.illegal.stashConfig.models.find((x) => x.model === m) || { label: m }).label;
+    SUBVIEWS.stash = (g) => {
+        const s = g.stashData;
+        const access = `<p class="hint">Accès : grades avec la permission <b>« Accès au coffre du groupe »</b>
+            (${g.stashGrades.length ? esc(g.stashGrades.join(', ')) : 'aucun'}). Le OG la donne aux grades qu'il veut depuis sa tablette (Grades),
+            ou toi depuis l'onglet <b>Grades</b> › Permissions.</p>`;
+        if (!s) {
+            return `<div class="section"><h2>Coffre du groupe</h2>
+                <p class="hint">Un inventaire partagé posé sur la map : poids et nombre de places au choix. Place-toi à l'endroit voulu.</p>${access}
+                <div class="btn-row"><button class="btn primary" data-ila="addStash">📍 Placer un coffre à ma position</button></div></div>`;
+        }
+        return `<div class="section"><h2>Coffre du groupe</h2>
+                <table>
+                    <tr><td class="muted" style="width:180px">Nom</td><td><strong>${esc(s.label)}</strong></td></tr>
+                    <tr><td class="muted">Objet</td><td>${esc(stashModelLabel(s.model))} <span class="muted">${esc(s.model)}</span></td></tr>
+                    <tr><td class="muted">Poids maximum</td><td>${s.weight} kg</td></tr>
+                    <tr><td class="muted">Places</td><td>${s.slots}</td></tr>
+                    <tr><td class="muted">Position</td><td>${s.x.toFixed(2)}, ${s.y.toFixed(2)}, ${s.z.toFixed(2)} · ${s.h.toFixed(0)}°</td></tr>
+                </table>
+                ${access}
+                <div class="btn-row" style="margin-top:12px">
+                    <button class="btn primary" data-ila="editStash">Modifier (nom, objet, poids, places)</button>
+                    <button class="btn" data-ila="gotoStash">Téléporter vers le coffre</button>
+                    <button class="btn" data-ila="stashHere">📍 Déplacer le coffre à ma position</button>
+                    <button class="btn danger" data-ila="removeStash">Supprimer le coffre</button>
+                </div></div>`;
     };
 
     /* ---------- Commandes ---------- */
@@ -513,6 +545,27 @@
                 if (await confirmBox(`Supprimer « ${o.name} » ?`, 'La commande ne sera plus proposée.')) send('deleteOrder', { id: o.global ? undefined : id, orderId: o.id });
                 return;
             }
+            case 'addStash':
+            case 'editStash': {
+                const s = g.stashData, c = D.illegal.stashConfig;
+                const models = c.models.map((m) => ({ value: m.model, label: `${m.label} (${m.model})` }));
+                if (s && !c.models.find((m) => m.model === s.model)) models.push({ value: s.model, label: s.model });
+                v = await formModal(s ? 'Modifier le coffre' : 'Placer le coffre à ma position', [
+                    { name: 'label', label: 'Nom du coffre', value: s ? s.label : 'Coffre' },
+                    { name: 'model', label: 'Objet', type: 'select', value: s ? s.model : c.models[0].model, options: models },
+                    { name: 'weight', label: `Poids maximum en kg (1 à ${c.maxWeight})`, type: 'number', value: s ? s.weight : c.defaultWeight },
+                    { name: 'slots', label: `Nombre de places (1 à ${c.maxSlots})`, type: 'number', value: s ? s.slots : c.defaultSlots },
+                ], s ? 'Enregistrer' : 'Placer ici');
+                if (v) send('setStash', { id, label: v.label, model: v.model, weight: Number(v.weight), slots: Number(v.slots), useMyPosition: !s });
+                return;
+            }
+            case 'stashHere':
+                if (await confirmBox('Déplacer le coffre ici ?', 'Il sera placé à ta position, tourné dans ta direction. Son contenu ne change pas.')) send('setStash', { id, useMyPosition: true });
+                return;
+            case 'gotoStash': post('close'); return send('gotoStash', { id });
+            case 'removeStash':
+                if (await confirmBox('Supprimer le coffre ?', `Le coffre de ${g.label} disparaît de la map. Son contenu est conservé : il revient si tu replaces un coffre.`)) send('removeStash', { id });
+                return;
             case 'readyNow': return send('readyNow', { id, requestId: Number(n.dataset.rid) });
             case 'addSpot':
                 v = await formModal('Nouveau point de livraison', [

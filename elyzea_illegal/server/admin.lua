@@ -26,6 +26,7 @@ local function groupSummary(g)
         id = g.id, name = g.name, label = g.label, type = g.type, typeLabel = U.typeLabel(g.type), color = g.color,
         members = Cache.memberCount(g), og = og, clean = g.finance.clean, dirty = g.finance.dirty,
         ped = g.ped and g.ped.model or nil,
+        stash = g.stash and g.stash.label or nil,
     }
 end
 
@@ -56,6 +57,11 @@ local function groupDetail(g)
     table.sort(d.memberList, function(a, b) if a.level ~= b.level then return a.level > b.level end return a.name < b.name end)
 
     d.finance = { clean = g.finance.clean, dirty = g.finance.dirty, history = Cache.transactions(g) }
+    d.stashData = g.stash and { label = g.stash.label, model = g.stash.model, x = g.stash.x, y = g.stash.y, z = g.stash.z, h = g.stash.h,
+        weight = g.stash.weight, slots = g.stash.slots } or nil
+    local withStash = {}
+    for _, gr in ipairs(Cache.sortedGrades(g)) do if Cache.hasPerm(gr, 'stash') then withStash[#withStash + 1] = gr.label end end
+    d.stashGrades = withStash
     d.pedData = g.ped and { model = g.ped.model, x = g.ped.x, y = g.ped.y, z = g.ped.z, h = g.ped.h, scenario = g.ped.scenario, menu = g.ped.menu } or nil
 
     d.orders = {}
@@ -103,6 +109,8 @@ exports('AdminData', function(src)
         items = items,
         delivery = { prepareMinutes = Config.Delivery.prepareMinutes, minDistance = Config.Delivery.minDistance,
             requireValidation = Config.Orders.requireValidation },
+        stashConfig = { models = Config.Stash.models, defaultWeight = Config.Stash.defaultWeight, defaultSlots = Config.Stash.defaultSlots,
+            maxWeight = Config.Stash.maxWeight, maxSlots = Config.Stash.maxSlots },
         types = Config.Types, permissions = Illegal.Permissions, tabs = Illegal.Tabs, categories = Config.OrderCategories,
         defaultPed = Config.Ped.defaultModel, defaultScenario = Config.Ped.scenario, maxAmount = Config.MaxAmount,
     }
@@ -158,6 +166,14 @@ A.money = function(src, d, g) return Finances.adminAdjust(staffActor(src), g, d.
 A.setPed = function(src, d, g) return Peds.set(staffActor(src), g, d) end
 A.removePed = function(src, d, g) return Peds.remove(staffActor(src), g) end
 A.respawnPed = function(src, d, g) return Peds.respawn(staffActor(src), g) end
+A.setStash = function(src, d, g) return Stashes.set(staffActor(src), g, d) end
+A.removeStash = function(src, d, g) return Stashes.remove(staffActor(src), g) end
+A.gotoStash = function(src, d, g)
+    if not g.stash then return false, 'Ce groupe n\'a pas de coffre.' end
+    TriggerClientEvent('adminmenu:teleport', src, { x = g.stash.x, y = g.stash.y + 1.2, z = g.stash.z + 1.0 })
+    return true
+end
+
 A.gotoPed = function(src, d, g)
     if not g.ped then return false, 'Ce groupe n\'a pas de PNJ.' end
     -- Téléportation existante du menu staff (aucun nouvel évènement côté admin_menu)

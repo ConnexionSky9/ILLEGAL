@@ -3,7 +3,7 @@
 --  admin_menu et la base de données (en mémoire), pour exécuter
 --  le vrai code serveur de elyzea_illegal.
 -- =========================================================
-local M = { clientEvents = {}, notifications = {}, timers = {}, net = {}, local_ = {}, callbacks = {}, exported = {}, prints = {} }
+local M = { stashes = {}, hooks = {}, opened = {}, clientEvents = {}, notifications = {}, timers = {}, net = {}, local_ = {}, callbacks = {}, exported = {}, prints = {} }
 
 -- ---------- JSON minimal ----------
 local function encode(v)
@@ -122,6 +122,9 @@ local resources = {
             return true
         end,
         CanCarryItem = function(_, src) return M.players[src].canCarry end,
+        RegisterStash = function(_, id, label, slots, weight) M.stashes[id] = { label = label, slots = slots, weight = weight } end,
+        registerHook = function(_, name, fn) M.hooks[name] = fn return 1 end,
+        forceOpenInventory = function(_, src, typ, id) M.opened[#M.opened + 1] = { src = src, type = typ, id = id } end,
         Items = function() return { weapon_pistol = { name = 'weapon_pistol', label = 'Pistolet' }, black_money = { name = 'black_money', label = 'Argent sale' },
             weed = { name = 'weed', label = 'Cannabis' } } end,
     },

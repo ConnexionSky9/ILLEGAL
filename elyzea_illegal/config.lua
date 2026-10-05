@@ -98,6 +98,28 @@ Config.Delivery = {
     },
 }
 
+-- ---------------------------------------------------------
+--  Coffre du groupe (placé dans admin_menu › ILLEGAL › groupe › Coffre)
+--  Accès : permission « Accès au coffre du groupe » des grades (le OG la donne).
+-- ---------------------------------------------------------
+Config.Stash = {
+    models = {
+        { model = 'prop_ld_int_safe_01',     label = 'Coffre-fort' },
+        { model = 'p_v_43_safe_s',           label = 'Petit coffre-fort' },
+        { model = 'prop_mil_crate_01',       label = 'Caisse militaire' },
+        { model = 'prop_box_wood02a',        label = 'Caisse en bois' },
+        { model = 'xm_prop_x17_chest_closed', label = 'Coffre de pirate' },
+        { model = 'prop_toolchest_05',       label = 'Servante à outils' },
+        { model = 'prop_rub_cabinet01',      label = 'Armoire métallique' },
+    },
+    defaultWeight = 500,     -- kg
+    defaultSlots = 50,
+    maxWeight = 100000,      -- kg
+    maxSlots = 500,
+    interactDistance = 2.0,  -- invite [E]
+    spawnDistance = 50.0,    -- l'objet n'existe chez le joueur qu'à cette distance
+}
+
 -- Notification « téléphone » : lb-phone est détecté automatiquement, sinon notification ox_lib.
 -- Pour un autre téléphone, remplace cette fonction (côté client) :
 --   Config.PhoneNotify = function(title, message) exports['mon-phone']:Notify(title, message) end
@@ -130,25 +152,25 @@ Config.Templates = {
         { name = 'recrue',     label = 'Recrue',     level = 10,  perms = { 'orders_place' } },
         { name = 'membre',     label = 'Membre',     level = 20,  perms = { 'orders_place', 'clean_deposit', 'dirty_deposit' } },
         { name = 'soldat',     label = 'Soldat',     level = 30,  perms = { 'orders_place', 'clean_deposit', 'dirty_deposit', 'finance_view' } },
-        { name = 'lieutenant', label = 'Lieutenant', level = 50,  perms = { 'orders_place', 'orders_manage', 'orders_validate', 'recruit', 'promote', 'set_grade',
+        { name = 'lieutenant', label = 'Lieutenant', level = 50,  perms = { 'stash', 'orders_place', 'orders_manage', 'orders_validate', 'recruit', 'promote', 'set_grade',
                                                                              'finance_view', 'clean_deposit', 'clean_withdraw', 'dirty_deposit', 'dirty_withdraw' } },
-        { name = 'brasdroit',  label = 'Bras droit', level = 80,  perms = { 'orders_place', 'orders_manage', 'orders_validate', 'recruit', 'kick', 'promote', 'demote', 'set_grade',
+        { name = 'brasdroit',  label = 'Bras droit', level = 80,  perms = { 'stash', 'orders_place', 'orders_manage', 'orders_validate', 'recruit', 'kick', 'promote', 'demote', 'set_grade',
                                                                              'finance_view', 'clean_deposit', 'clean_withdraw', 'dirty_deposit', 'dirty_withdraw' } },
         { name = 'og',         label = 'OG',         level = 100, boss = true },
     },
     organisation = {
         { name = 'associe',    label = 'Associé',    level = 10,  perms = { 'orders_place' } },
         { name = 'soldat',     label = 'Soldat',     level = 30,  perms = { 'orders_place', 'clean_deposit', 'dirty_deposit' } },
-        { name = 'capo',       label = 'Capo',       level = 60,  perms = { 'orders_place', 'orders_manage', 'orders_validate', 'recruit', 'promote', 'set_grade',
+        { name = 'capo',       label = 'Capo',       level = 60,  perms = { 'stash', 'orders_place', 'orders_manage', 'orders_validate', 'recruit', 'promote', 'set_grade',
                                                                              'finance_view', 'clean_deposit', 'clean_withdraw', 'dirty_deposit', 'dirty_withdraw' } },
-        { name = 'consigliere', label = 'Consigliere', level = 80, perms = { 'orders_place', 'orders_manage', 'orders_validate', 'recruit', 'kick', 'promote', 'demote', 'set_grade',
+        { name = 'consigliere', label = 'Consigliere', level = 80, perms = { 'stash', 'orders_place', 'orders_manage', 'orders_validate', 'recruit', 'kick', 'promote', 'demote', 'set_grade',
                                                                              'manage_grades', 'finance_view', 'clean_deposit', 'clean_withdraw', 'dirty_deposit', 'dirty_withdraw' } },
         { name = 'parrain',    label = 'Parrain',    level = 100, boss = true },
     },
     cartel = {
         { name = 'novice',     label = 'Novice',     level = 10,  perms = { 'orders_place' } },
         { name = 'sicario',    label = 'Sicario',    level = 40,  perms = { 'orders_place', 'clean_deposit', 'dirty_deposit', 'finance_view' } },
-        { name = 'capitaine',  label = 'Capitaine',  level = 70,  perms = { 'orders_place', 'orders_manage', 'orders_validate', 'recruit', 'kick', 'promote', 'demote', 'set_grade',
+        { name = 'capitaine',  label = 'Capitaine',  level = 70,  perms = { 'stash', 'orders_place', 'orders_manage', 'orders_validate', 'recruit', 'kick', 'promote', 'demote', 'set_grade',
                                                                              'finance_view', 'clean_deposit', 'clean_withdraw', 'dirty_deposit', 'dirty_withdraw' } },
         { name = 'patron',     label = 'Patron',     level = 100, boss = true },
     },

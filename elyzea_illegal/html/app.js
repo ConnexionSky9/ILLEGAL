@@ -126,6 +126,8 @@ VIEWS.home = () => {
         <div class="section"><h2>${esc(g.label)}</h2>
             <p class="hint">${esc(g.description || 'Aucune description.')}</p>
             <p class="muted">Créé le ${date(g.created)}</p>
+            ${g.stash ? `<p class="muted" style="margin-top:6px">🗄️ Coffre du groupe : ${esc(g.stash.label)} · ${g.stash.weight} kg · ${g.stash.slots} places ·
+                ${can('stash') ? '<span class="badge ok">Accès autorisé</span>' : '<span class="badge danger">Pas d\'accès avec ton grade</span>'}</p>` : ''}
         </div>
         <div class="section"><h2>Mon grade : ${esc(D.me.grade)}</h2>
             ${D.me.boss ? '<p class="hint">Grade chef : toutes les permissions.</p>' : ''}
