@@ -196,6 +196,7 @@ RegisterNetEvent('adminmenu:editor:sync', function(kind, list)
     if kind == 'zones' then if RefreshZones then RefreshZones() end return end
     if kind == 'doors' then if RefreshDoors then RefreshDoors() end return end
     if kind ~= 'spawns' then RebuildEditorIndex() end
+    if kind == 'peds' and RefreshBarberBlips then RefreshBarberBlips() end
     if kind == 'fields' or kind == 'stations' or kind == 'searches' then refreshBlips() end
     if kind == 'spawns' then
         applySpawnmanager()
@@ -1225,7 +1226,7 @@ CreateThread(function()
     while true do
         local sleep = 500
         local near = NearInteract
-        if #near > 0 and not busy and not stationOpen and not NpcOpen and not Placing and not IsNoclipActive() and not clothingOpen() then
+        if #near > 0 and not busy and not stationOpen and not NpcOpen and not Placing and not IsNoclipActive() and not clothingOpen() and not BarberOpen then
             sleep = 0
             local ped = PlayerPedId()
             local pos = GetEntityCoords(ped)
@@ -1251,6 +1252,9 @@ CreateThread(function()
                 elseif best.interact == 'npc' and best.ref.npc and best.ref.npc.catalog then
                     ShowPrompt('Appuyer pour voir', best.ref.npc.catalog.name or 'le catalogue')
                     if pressed then TriggerServerEvent('adminmenu:catalog:open', best.ref.id) end
+                elseif best.interact == 'npc' and best.ref.npc and best.ref.npc.barber then
+                    ShowPrompt('Appuyer pour entrer chez', best.ref.npc.barber.name or best.ref.name or 'le coiffeur')
+                    if pressed then TriggerServerEvent('adminmenu:barber:request', best.ref.id) end
                 elseif best.interact == 'npc' and best.ref.npc and best.ref.npc.clothing then
                     ShowPrompt('Appuyer pour entrer dans', best.ref.npc.clothing.name or best.ref.name or 'la boutique')
                     if pressed then TriggerServerEvent('adminmenu:clothing:open', best.ref.id) end

@@ -900,6 +900,12 @@ Config.Editor = {
           npc = { payment = 'cash', clothing = { name = 'Binco', multiplier = 100, categories = {} } } },
         { id = 'clothing_lux', icon = '👔', label = 'Boutique de luxe', scenario = 'WORLD_HUMAN_CLIPBOARD', name = 'Conseiller',
           npc = { payment = 'cash', clothing = { name = 'Ponsonbys', multiplier = 250, categories = {} } } },
+        { id = 'barber', icon = '💈', label = 'Coiffeur / barbier', scenario = 'WORLD_HUMAN_STAND_IMPATIENT', name = 'Coiffeur',
+          npc = { payment = 'cash', barber = { name = 'Salon de coiffure', payChoice = true, blip = true } } },
+        { id = 'barber_lux', icon = '✂️', label = 'Salon de luxe', scenario = 'WORLD_HUMAN_CLIPBOARD', name = 'Styliste',
+          npc = { payment = 'bank', barber = { name = 'Salon Prestige', payChoice = true, blip = true, specialEyes = true,
+                  prices = { hair = 450, hair_color = 250, hair_highlight = 180, beard = 180, beard_color = 120, beard_highlight = 90,
+                             brows = 120, brows_color = 80, eyes = 600, chest = 90, chest_color = 60 } } } },
         { id = 'garage', icon = '🚗', label = 'Garage (location)', scenario = 'WORLD_HUMAN_CLIPBOARD', name = 'Garagiste',
           npc = { payment = 'bank', garage = { plate = 'LOC', fuel = 100, warp = true, onePerPlayer = true, blip = true,
                   vehicles = { { model = 'blista', label = 'Blista', price = 150 }, { model = 'panto', label = 'Panto', price = 100 },
@@ -963,6 +969,45 @@ Config.Editor = {
 
     -- Supprimer un élément de l'éditeur en noclip demande deux appuis sur G
     confirmDelete = true,
+}
+
+-- =========================================================
+--  COIFFEUR / BARBIER
+--  Pose un PNJ dans l'éditeur (F10 › Éditeur › PNJ), choisis le rôle
+--  « Coiffeur » et règle ses prix. Les joueurs appuient sur E devant lui.
+-- =========================================================
+Config.Barber = {
+    enabled = true,
+
+    -- Où enregistrer la nouvelle tête après paiement :
+    --  'auto'     : illenium-appearance / fivem-appearance, sinon esx_skin, sinon 'internal'
+    --  'illenium' : illenium-appearance (Qbox / QBCore)
+    --  'esx'      : esx_skin + skinchanger
+    --  'internal' : sauvegardé par le menu (data/barber_looks.json) et remis à chaque spawn
+    saveMode = 'auto',
+
+    -- Prix par défaut d'un nouveau coiffeur (modifiables PNJ par PNJ dans l'éditeur)
+    defaultPrices = {
+        hair = 150, hair_color = 80, hair_highlight = 60,
+        beard = 60, beard_color = 40, beard_highlight = 30,
+        brows = 40, brows_color = 25,
+        eyes = 200,
+        chest = 30, chest_color = 20,
+    },
+
+    blipSprite = 71,          -- icône de ciseaux
+    blipColor  = 4,
+    blipScale  = 0.75,
+
+    beardForFemale = false,   -- montrer l'onglet Barbe aux personnages féminins
+    chestForFemale = false,   -- montrer l'onglet Torse aux personnages féminins
+    hideAccessories = true,   -- retire chapeau, lunettes et masque pendant la coupe (remis à la sortie)
+
+    -- Coupes cachées (bugs connus du jeu : coiffure « vision nocturne »)
+    hairBlacklist = { male = { 23 }, female = { 24 } },
+
+    -- Noms de tes coupes ajoutées (addon) : [numéro] = 'Nom'
+    customHairLabels = { male = {}, female = {} },
 }
 
 -- =========================================================

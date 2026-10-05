@@ -5,7 +5,7 @@ lua54 'yes'
 name 'admin_menu'
 author 'Elyzea FA'
 description 'Menu administrateur complet (standalone) - noclip 3e personne, grades, permissions, sanctions, véhicules, météo'
-version '1.10.0'
+version '1.11.0'
 
 shared_script 'config.lua'
 
@@ -32,6 +32,7 @@ client_scripts {
     'client/mapicons.lua',
     'client/garage.lua',
     'client/drops.lua',
+    'client/barber.lua',
 }
 
 server_scripts {
@@ -51,6 +52,7 @@ server_scripts {
     'server/map.lua',
     'server/drops.lua',
     'server/illegal.lua',
+    'server/barber.lua',
 }
 
 ui_page 'html/index.html'
@@ -72,5 +74,7 @@ files {
     'html/stashes.js',
     'html/drops.js',
     'html/illegal.js',
+    'html/barber.js',
+    'html/barber.css',
     'html/logo.png',
 }

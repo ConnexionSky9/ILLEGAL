@@ -1043,6 +1043,10 @@ function npcSummary(n) {
     if (n.pubgarage) parts.push(`🅿️ Garage public <b>${esc(n.pubgarage.name)}</b> · ${(n.pubgarage.spots || []).length ? `${n.pubgarage.spots.length} place(s) de sortie` : '<b style="color:var(--danger)">aucune place de sortie</b>'}`);
     if (n.catalog) parts.push(`🚘 Catalogue de la concession : <b>${esc(n.catalog.name)}</b> (voir les véhicules, sans achat)`);
     if (n.clothing) parts.push(`👕 Boutique <b>${esc(n.clothing.name)}</b> · prix ${n.clothing.multiplier} % · ${n.clothing.categories && n.clothing.categories.length ? `${n.clothing.categories.length} rayons` : 'tous les rayons'}`);
+    if (n.barber) {
+        const bp = n.barber.prices || {};
+        parts.push(`💈 Coiffeur <b>${esc(n.barber.name)}</b> · coupe ${bp.hair ?? 0} $ · barbe ${bp.beard ?? 0} $ · ${n.barber.services && n.barber.services.length ? `${n.barber.services.length} service(s)` : 'tous les services'}${n.barber.blip ? ' · 🗺️ visible sur la carte' : ''}`);
+    }
     if (n.hours) parts.push(`🕘 ${n.hours.from}h → ${n.hours.to}h`);
     const jl = (n.jobs && n.jobs.length ? n.jobs : (n.garage && n.garage.jobs)) || [];
     if (jl.length) parts.push(`🔑 Réservé à ${jl.map((j) => `<b>${esc(jobLabelOf(j.job))}</b>${j.grade ? ` (grade ${j.grade}+)` : ''}`).join(', ')}`);
@@ -1134,7 +1138,67 @@ function toPedEdit(r) {
         clName: n.clothing ? n.clothing.name : 'Boutique de vêtements',
         clMult: n.clothing ? n.clothing.multiplier : 100,
         clCats: clone(n.clothing && n.clothing.categories && n.clothing.categories.length ? n.clothing.categories : CLOTHING_CATS.map((c) => c.id)),
+        ...barberEdit(n.barber),
     };
+}
+// Coiffeur : services proposés et prix par prestation
+const BARBER_SERVICES = [
+    { id: 'hair', label: '✂️ Coupes' }, { id: 'hair_color', label: '🎨 Couleur des cheveux' }, { id: 'beard', label: '🧔 Barbe' },
+    { id: 'brows', label: '〰️ Sourcils' }, { id: 'eyes', label: '👁️ Yeux' }, { id: 'chest', label: '💪 Pilosité du torse' },
+];
+const BARBER_PRICES = [
+    { k: 'hair', s: 'hair', label: 'Coupe de cheveux' }, { k: 'hair_color', s: 'hair_color', label: 'Couleur des cheveux' },
+    { k: 'hair_highlight', s: 'hair_color', label: 'Reflets des cheveux' }, { k: 'beard', s: 'beard', label: 'Taille de barbe' },
+    { k: 'beard_color', s: 'beard', label: 'Couleur de barbe' }, { k: 'beard_highlight', s: 'beard', label: 'Reflets de barbe' },
+    { k: 'brows', s: 'brows', label: 'Sourcils' }, { k: 'brows_color', s: 'brows', label: 'Couleur des sourcils' },
+    { k: 'eyes', s: 'eyes', label: 'Lentilles (couleur des yeux)' }, { k: 'chest', s: 'chest', label: 'Pilosité du torse' },
+    { k: 'chest_color', s: 'chest', label: 'Couleur pilosité torse' },
+];
+function barberEdit(b) {
+    const def = (D.config && D.config.barber && D.config.barber.prices) || {};
+    const prices = {};
+    BARBER_PRICES.forEach((x) => { prices[x.k] = b && b.prices && b.prices[x.k] !== undefined ? b.prices[x.k] : (def[x.k] ?? 0); });
+    return {
+        barberOn: !!b,
+        bbName: b ? b.name : 'Salon de coiffure',
+        bbPrices: prices,
+        bbServices: clone(b && b.services && b.services.length ? b.services : BARBER_SERVICES.map((x) => x.id)),
+        bbPayChoice: b ? b.payChoice !== false : true,
+        bbSpecialEyes: b ? !!b.specialEyes : false,
+        bbBlip: b ? !!b.blip : true,
+        bbBlipSprite: b ? b.blipSprite : ((D.config.barber || {}).blipSprite || 71),
+        bbBlipColor: b ? b.blipColor : ((D.config.barber || {}).blipColor || 4),
+    };
+}
+function barberCard(p, tog) {
+    const all = p.bbServices.length === BARBER_SERVICES.length;
+    const on = (s) => p.bbServices.includes(s);
+    return `<div class="card recipe"><h3 class="sub-h" style="font-size:17px">💈 Coiffeur / barbier</h3>
+        <p class="hint">Quand un joueur appuie sur <span class="keycap">E</span> devant ce PNJ, le salon s'ouvre : son personnage au centre,
+            aperçu instantané au survol de chaque coupe, barbe, sourcils, couleur et reflets, panier puis paiement. La nouvelle tête est enregistrée.
+            ${p.shopOn || p.buyerOn || p.garageOn || p.clothingOn ? ' Avec ce rôle, parler au PNJ ouvre le salon : ses autres rôles ne sont plus proposés.' : ''}</p>
+        <div class="form-grid" style="grid-template-columns:1fr;margin-bottom:12px">
+            <div><label>Nom du salon</label><input class="input" data-pe="bbName" value="${esc(p.bbName)}" placeholder="ex : Herr Kutz Barber"></div>
+        </div>
+        <label>Services proposés ${all ? '<span class="muted">(tous)</span>' : `<span class="muted">(${p.bbServices.length} sur ${BARBER_SERVICES.length})</span>`}</label>
+        <div class="chips" style="margin:6px 0 14px">${BARBER_SERVICES.map((c) => `<button class="chip" data-ed="bb_svc" data-svc="${c.id}" style="${on(c.id) ? 'border-color:var(--signal);color:var(--gold-hi);background:rgba(217,181,106,.12)' : 'opacity:.55'}">${on(c.id) ? '✓ ' : ''}${esc(c.label)}</button>`).join('')}</div>
+        <label>Prix des prestations <span class="muted">(0 = gratuit)</span></label>
+        <table class="loot" style="margin-top:6px"><tr><th>Prestation</th><th style="width:160px">Prix ($)</th></tr>
+            ${BARBER_PRICES.filter((x) => on(x.s)).map((x) => `<tr><td>${esc(x.label)}</td>
+                <td><input class="input" type="number" min="0" data-bbp="${x.k}" value="${esc(p.bbPrices[x.k])}"></td></tr>`).join('')}
+        </table>
+        <div class="btn-row" style="margin:8px 0 14px"><button class="btn" data-ed="bb_prices_x" data-f="0.5">Prix ÷ 2</button>
+            <button class="btn" data-ed="bb_prices_x" data-f="1.5">Prix × 1,5</button><button class="btn" data-ed="bb_prices_x" data-f="2">Prix × 2</button>
+            <button class="btn" data-ed="bb_prices_def">Prix par défaut</button></div>
+        <div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
+            ${tog('bbPayChoice', '💳 Liquide ou banque au choix', 'Sinon : la monnaie réglée plus bas')}
+            ${tog('bbSpecialEyes', '👹 Lentilles fantaisie', 'Yeux de démon, zombie, alien…')}
+            ${tog('bbBlip', '🗺️ Visible sur la carte', 'Icône de ciseaux pour tous les joueurs')}
+        </div>
+        ${p.bbBlip ? `<div class="form-grid" style="grid-template-columns:1fr 1fr;margin-bottom:0">
+            <div><label>Icône (n° de blip)</label><input class="input" type="number" min="1" max="900" data-pe="bbBlipSprite" value="${esc(p.bbBlipSprite)}"></div>
+            <div><label>Couleur (n°)</label><input class="input" type="number" min="0" max="85" data-pe="bbBlipColor" value="${esc(p.bbBlipColor)}"></div></div>` : ''}
+    </div>`;
 }
 // Catégories de la boutique de vêtements (identiques à elyzea_clothing/config.lua)
 const CLOTHING_CATS = [
@@ -1169,7 +1233,7 @@ function applyPresetToPedEdit(id) {
 }
 function pedEditPayload(p) {
     const num = (v, d) => (v === '' || v === undefined || isNaN(Number(v)) ? d : Number(v));
-    const npc = (p.shopOn || p.buyerOn || p.garageOn || p.clothingOn || p.catalogOn || p.pubOn) ? {
+    const npc = (p.shopOn || p.buyerOn || p.garageOn || p.clothingOn || p.catalogOn || p.pubOn || p.barberOn) ? {
         payment: p.payment, paymentItem: String(p.paymentItem || '').trim(),
         shop: p.shopOn ? { items: p.shop.filter((i) => String(i.item).trim()).map((i) => ({ item: String(i.item).trim(), price: num(i.price, 0) })) } : null,
         buyer: p.buyerOn ? {
@@ -1181,6 +1245,13 @@ function pedEditPayload(p) {
         pubgarage: p.pubOn ? { name: String(p.pubName || '').trim(), blip: !!p.pubBlip, blipSprite: 357, blipColor: 3, storeRadius: num(p.pubRadius, 4) } : null,
         clothing: p.clothingOn ? { name: String(p.clName || '').trim(), multiplier: num(p.clMult, 100),
             categories: p.clCats.length === CLOTHING_CATS.length ? [] : p.clCats.slice() } : null,
+        barber: p.barberOn ? {
+            name: String(p.bbName || '').trim(),
+            prices: Object.fromEntries(BARBER_PRICES.map((x) => [x.k, Math.max(0, Math.floor(num(p.bbPrices[x.k], 0)))])),
+            services: p.bbServices.length === BARBER_SERVICES.length ? [] : p.bbServices.slice(),
+            payChoice: !!p.bbPayChoice, specialEyes: !!p.bbSpecialEyes,
+            blip: !!p.bbBlip, blipSprite: num(p.bbBlipSprite, 71), blipColor: num(p.bbBlipColor, 4),
+        } : null,
         jobs: p.gJobsOn ? p.gJobs.filter((j) => String(j.job).trim()).map((j) => ({ job: String(j.job).trim().toLowerCase(), grade: num(j.grade, 0) })) : [],
         garage: p.garageOn ? {
             vehicles: p.gVehicles.filter((v) => String(v.model).trim()).map((v) => ({ model: String(v.model).trim().toLowerCase(), label: String(v.label || '').trim(), price: num(v.price, 0) })),
@@ -1383,7 +1454,9 @@ function pedEditor() {
                 ${tog('clothingOn', '👕 Boutique de vêtements', 'Parler à lui ouvre la boutique')}
                 ${tog('catalogOn', '🚘 Catalogue concession', 'Montre les véhicules en vente (sans achat)')}
                 ${tog('pubOn', '🅿️ Garage public', 'Les joueurs sortent et rangent leurs véhicules')}
+                ${tog('barberOn', '💈 Coiffeur / barbier', 'Coupes, barbe, sourcils, yeux, couleurs')}
             </div>
+            ${p.barberOn ? barberCard(p, tog) : ''}
             ${p.pubOn ? pubGarageCard(p, tog) : ''}
             ${p.catalogOn ? `<div class="card recipe"><h3 class="sub-h" style="font-size:17px">🚘 Catalogue de la concession</h3>
                 <p class="hint">Quand un joueur parle à ce PNJ, le catalogue de la concession s'ouvre : catégories, recherche, fiches avec
@@ -1425,8 +1498,8 @@ function pedEditor() {
             </div>` : ''}
         </div>
 
-        ${(p.buyerOn || p.shopOn || p.garageOn || p.clothingOn) ? accessSection(p) : ''}
-        ${(p.buyerOn || p.shopOn || p.garageOn || p.clothingOn) ? `<div class="section"><h2>Argent et horaires</h2>
+        ${(p.buyerOn || p.shopOn || p.garageOn || p.clothingOn || p.barberOn) ? accessSection(p) : ''}
+        ${(p.buyerOn || p.shopOn || p.garageOn || p.clothingOn || p.barberOn) ? `<div class="section"><h2>Argent et horaires</h2>
             <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
                 <div><label>Monnaie utilisée</label><select class="input" data-pe="payment">
                     ${Object.entries(PAY_LABELS).map(([k, l]) => `<option value="${k}" ${p.payment === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
@@ -2079,6 +2152,7 @@ async function handleEditor(n) {
             if (pl.npc && pl.npc.garage && !pl.npc.garage.vehicles.length) return toast('Ajoute au moins un véhicule, ou désactive « Garage ».', 'error');
             if (pl.npc && pedEdit.gJobsOn && !pl.npc.jobs.length) return toast('Choisis au moins un métier, ou « Tout le monde ».', 'error');
             if (pl.npc && pl.npc.clothing && !pedEdit.clCats.length) return toast('Choisis au moins un rayon pour la boutique.', 'error');
+            if (pl.npc && pl.npc.barber && !pedEdit.bbServices.length) return toast('Choisis au moins un service pour le coiffeur.', 'error');
             action('editor_save_ped', pl);
             pedEdit = null;
             return setTimeout(() => post('refresh'), 300);
@@ -2090,6 +2164,17 @@ async function handleEditor(n) {
             if (i >= 0) pedEdit.clCats.splice(i, 1); else pedEdit.clCats.push(c);
             return render();
         }
+        case 'bb_svc': {
+            const c = n.dataset.svc, i = pedEdit.bbServices.indexOf(c);
+            if (i >= 0) pedEdit.bbServices.splice(i, 1); else pedEdit.bbServices.push(c);
+            return render();
+        }
+        case 'bb_prices_x': {
+            const f = Number(n.dataset.f) || 1;
+            Object.keys(pedEdit.bbPrices).forEach((k) => { pedEdit.bbPrices[k] = Math.round((Number(pedEdit.bbPrices[k]) || 0) * f); });
+            return render();
+        }
+        case 'bb_prices_def': pedEdit.bbPrices = barberEdit(null).bbPrices; return render();
         case 'cl_all': pedEdit.clCats = CLOTHING_CATS.map((c) => c.id); return render();
         case 'cl_none': pedEdit.clCats = []; return render();
         case 'pgj_add': pedEdit.gJobs.push({ job: '', grade: 0 }); return render();
@@ -2370,6 +2455,7 @@ content.addEventListener('input', (e) => {
     if (rankDraft && t.dataset.rankField) rankDraft[t.dataset.rankField] = t.value;
     if (t.dataset.field && t.dataset.field !== 'preset') fieldDraft()[t.dataset.field] = t.value;
     if (t.dataset.sn && t.dataset.sn !== 'preset') stationNewDraft()[t.dataset.sn] = t.value;
+    if (pedEdit && t.dataset.bbp) { pedEdit.bbPrices[t.dataset.bbp] = t.value; return; }
     if (pedEdit && t.dataset.pe) {
         const v = t.dataset.pe === 'hoursOn' ? t.value === 'true' : t.value;
         pedEdit[t.dataset.pe] = v;

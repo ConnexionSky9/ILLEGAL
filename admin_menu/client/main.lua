@@ -118,6 +118,7 @@ end
 -- ---------------------------------------------------------
 local permsAsked = 0
 local function openMenu()
+    if BarberOpen then return end -- salon de coiffure ouvert
     if not MyRank then
         -- Les permissions ont peut-être été perdues au démarrage : on les redemande une fois
         if GetGameTimer() - permsAsked > 3000 then
@@ -408,6 +409,7 @@ RegisterNetEvent('adminmenu:data', function(data)
         minLevel = Config.Editor.minLevel,
         reviveRadius = Config.ReviveAreaRadius,
         garages = { platePrefix = (Config.Garages or {}).platePrefix, blipSprite = (Config.Garages or {}).blipSprite, blipColor = (Config.Garages or {}).blipColor },
+        barber = { prices = (Config.Barber or {}).defaultPrices or {}, blipSprite = (Config.Barber or {}).blipSprite or 71, blipColor = (Config.Barber or {}).blipColor or 4 },
         doorDistance = Config.Doors.interactDistance, doorMinDistance = Config.Doors.minDistance, doorMaxDistance = Config.Doors.maxDistance,
         editor      = {
             minLevel = Config.Editor.minLevel,

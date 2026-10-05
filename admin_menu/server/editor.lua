@@ -376,7 +376,10 @@ local function cleanNpc(n)
             blipSprite = math.floor(num(pg.blipSprite, 1, 900, 357)), blipColor = math.floor(num(pg.blipColor, 0, 85, 3)),
             storeRadius = math.floor(num(pg.storeRadius, 1.5, 15, 4) * 10 + 0.5) / 10, spots = {}, stores = {} }
     end
-    if not out.shop and not out.buyer and not out.garage and not out.clothing and not out.catalog and not out.pubgarage then return nil end
+    -- Coiffeur / barbier (interface intégrée au menu, voir server/barber.lua)
+    local bb = type(n.barber) == 'table' and n.barber or nil
+    if bb and BarberCleanRole then out.barber = BarberCleanRole(bb) end
+    if not out.shop and not out.buyer and not out.garage and not out.clothing and not out.catalog and not out.pubgarage and not out.barber then return nil end
     return out
 end
 
@@ -1948,6 +1951,7 @@ end)
 --  (conversion d'un PNJ en contact GoFast)
 -- ---------------------------------------------------------
 AM.EditorPeds = {
+    check = function(src, id) return checkNpc(src, tonumber(id)) end,   -- distance, métiers, horaires
     get = function(id)
         local _, r = findIndex(Data.peds, id)
         return r
