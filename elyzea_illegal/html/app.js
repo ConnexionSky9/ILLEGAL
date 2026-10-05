@@ -65,12 +65,50 @@ window.addEventListener('message', (e) => {
     } else if (m.action === 'close') {
         $('#app').classList.add('hidden');
         closeModal();
+    } else if (m.action === 'notify') {
+        toast(m.message, m.type);
+    } else if (m.action === 'prompt') {
+        showPrompt(m);
+    } else if (m.action === 'f5') {
+        openF5(m.data);
+    } else if (m.action === 'f5close') {
+        $('#quick').classList.add('hidden');
     }
+});
+
+/* ---------- Invite d'interaction [E] (même rendu que le MenuStaff) ---------- */
+function showPrompt(m) {
+    const el = $('#prompt');
+    if (!m.show) { el.classList.add('hidden'); return; }
+    el.classList.toggle('muted', !!m.muted);
+    el.innerHTML = `<span class="pk">${esc(m.key || 'E')}</span><span class="pt"><span class="pa">${esc(m.verb || '')}</span><span class="pn">${esc(m.name || '')}</span></span>`;
+    el.classList.remove('hidden');
+}
+
+/* ---------- Menu F5 (même panneau que le menu rapide du staff) ---------- */
+function openF5(d) {
+    const box = $('#quick');
+    document.documentElement.style.setProperty('--rank', d.color || '#d9b56a');
+    box.innerHTML = `<div class="q-panel">
+        <div class="q-head"><div><strong>Menu</strong><span class="muted">F5 · groupe illégal</span></div>
+            <button class="sb-close q-close" data-f5="close" title="Fermer (Échap)">✕</button></div>
+        <div class="q-body"><div class="q-sec"><h3>Ton groupe</h3>
+            <button class="q-group" data-f5="open"><span class="q-crest">${esc((d.label || '?').charAt(0).toUpperCase())}</span>
+                <span><strong>${esc(d.label)}</strong><span>${esc(d.grade ? `Grade : ${d.grade}` : '')} · ouvrir la tablette</span></span></button>
+        </div></div></div>`;
+    box.classList.remove('hidden');
+}
+function closeF5() { $('#quick').classList.add('hidden'); post('f5close'); }
+$('#quick').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-f5]');
+    if (e.target.id === 'quick' || (b && b.dataset.f5 === 'close')) return closeF5();
+    if (b && b.dataset.f5 === 'open') { $('#quick').classList.add('hidden'); post('f5open'); }
 });
 
 function close() { $('#app').classList.add('hidden'); closeModal(); post('close'); }
 $('#close-btn').addEventListener('click', close);
 document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('#quick').classList.contains('hidden')) return closeF5();
     if (e.key !== 'Escape' || $('#app').classList.contains('hidden')) return;
     if ($('#modal-root').innerHTML) return closeModal();
     close();
@@ -81,14 +119,14 @@ setInterval(() => { const d = new Date(); $('#sb-clock').textContent = `${String
 function render() {
     if (!D) return;
     const g = D.group;
-    document.documentElement.style.setProperty('--group', g.color || '#e0433b');
+    document.documentElement.style.setProperty('--rank', g.color || '#d9b56a');
     $('#sb-title').textContent = g.label;
-    $('#sb-via').textContent = D.via === 'ped' ? '📍 Depuis le PNJ' : '📱 Tablette';
-    $('#crest').textContent = (g.label || '?').charAt(0).toUpperCase();
+    $('#sb-via').textContent = D.via === 'ped' ? '📍 Depuis le PNJ' : `👥 ${D.members.filter((m) => m.online).length} en ligne`;
     $('#brand-name').textContent = g.label;
     $('#brand-sub').textContent = g.typeLabel;
-    $('#me-name').textContent = D.me.name;
+    $('#me-name').textContent = `Connecté : ${D.me.name}`;
     $('#me-grade').textContent = D.me.grade + (D.me.boss ? ' · Chef' : '');
+    $('#sidebar-foot').innerHTML = `${esc(g.label)} · ${esc(g.typeLabel)}<br>Ouvrir : <span class="keycap">F5</span>${D.via === 'ped' ? ' ou le PNJ' : ''}`;
 
     const tabs = visibleTabs();
     if (!tabs.find((t) => t.id === tab)) tab = 'home';
@@ -121,7 +159,7 @@ VIEWS.home = () => {
             <div class="stat"><b>${g.memberCount}</b><span>Membres</span></div>
             <div class="stat"><b>${D.members.filter((m) => m.online).length}</b><span>En ligne</span></div>
             <div class="stat"><b>${esc(g.typeLabel)}</b><span>Type</span></div>
-            <div class="stat"><b>${esc(g.og.join(', ') || '—')}</b><span>Chef(s)</span></div>
+            <div class="stat money"><b>${esc(g.og.join(', ') || '—')}</b><span>Chef(s)</span></div>
         </div>
         <div class="section"><h2>${esc(g.label)}</h2>
             <p class="hint">${esc(g.description || 'Aucune description.')}</p>
@@ -188,7 +226,7 @@ function accountBlock(acc) {
     const dep = can(`${acc}_deposit`), wit = can(`${acc}_withdraw`), f = D.finance;
     if (!dep && !wit && !f) return '';
     return `<div class="section"><h2>${ACCOUNTS[acc]}</h2>
-        ${f ? `<div class="stat ${acc}" style="margin-bottom:10px"><b>${money(f[acc])}</b><span>Solde</span></div>` : '<p class="hint">Ton grade ne permet pas de voir le solde.</p>'}
+        ${f ? `<div class="stat money ${acc}" style="margin-bottom:12px"><b>${money(f[acc])}</b><span>Solde</span></div>` : '<p class="hint">Ton grade ne permet pas de voir le solde.</p>'}
         <div class="btn-row">${dep ? `<button class="btn ok" data-a="deposit" data-acc="${acc}">Déposer</button>` : ''}
             ${wit ? `<button class="btn" data-a="withdraw" data-acc="${acc}">Retirer</button>` : ''}</div></div>`;
 }
@@ -269,18 +307,18 @@ function formModal(title, fields, okLabel = 'Valider', danger = false) {
         if (f.type === 'select') input = `<select class="input" name="${f.name}">${f.options.map((o) => `<option value="${esc(o.value)}" ${String(o.value) === String(f.value) ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
         else if (f.type === 'textarea') input = `<textarea class="input" name="${f.name}" maxlength="${f.max || 500}">${esc(f.value || '')}</textarea>`;
         else if (f.type === 'perms') {
-            let lastCat = null;
-            input = `<div class="perm-grid">${D.permissions.map((p) => {
-                const cat = p.cat !== lastCat ? `<div class="perm-cat">${esc(p.cat)}</div>` : '';
-                lastCat = p.cat;
+            // Même présentation que l'onglet Grades du MenuStaff
+            const cats = [...new Set(D.permissions.map((p) => p.cat))];
+            input = cats.map((c) => `<div class="perm-cat"><h3>${esc(c)}</h3><div class="perm-grid">${D.permissions.filter((p) => p.cat === c).map((p) => {
                 const allowed = D.me.boss || can(p.key);
-                return `${cat}<label class="${allowed ? '' : 'off'}" title="${allowed ? '' : 'Tu ne peux pas donner une permission que tu n\'as pas'}">
+                return `<label class="perm ${allowed ? '' : 'locked'}" title="${allowed ? '' : 'Tu ne peux pas donner une permission que tu n\'as pas'}">
                     <input type="checkbox" data-perm="${p.key}" ${f.value && f.value[p.key] ? 'checked' : ''} ${allowed ? '' : 'disabled'}>${esc(p.label)}</label>`;
-            }).join('')}</div>`;
+            }).join('')}</div></div>`).join('');
         } else input = `<input class="input" name="${f.name}" type="${f.type === 'number' ? 'number' : 'text'}" value="${esc(f.value ?? '')}" ${f.max ? `maxlength="${f.max}"` : ''} placeholder="${esc(f.placeholder || '')}">`;
         return `<div class="field"><label>${esc(f.label || '')}</label>${input}</div>`;
     }).join('');
-    $('#modal-root').innerHTML = `<div class="modal-backdrop"><div class="modal"><h2>${esc(title)}</h2>${html}
+    const wide = fields.some((f) => f.type === 'perms');
+    $('#modal-root').innerHTML = `<div class="modal-backdrop"><div class="modal" ${wide ? 'style="width:660px"' : ''}><h2>${esc(title)}</h2>${html}
         <div class="btn-row"><button class="btn" data-m="cancel">Annuler</button><button class="btn ${danger ? 'danger' : 'primary'}" data-m="ok">${esc(okLabel)}</button></div></div></div>`;
     const first = $('#modal-root .input');
     if (first) first.focus();
@@ -308,7 +346,7 @@ function toast(msg, type = 'info') {
     t.className = `toast ${type}`;
     t.textContent = msg;
     $('#toasts').appendChild(t);
-    setTimeout(() => t.remove(), 4000);
+    setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, 4500);
 }
 
 const gradeOptions = (onlyBelow) => [...D.grades].reverse().filter((g) => !onlyBelow || g.level < D.me.level).map((g) => ({ value: g.id, label: `${g.label} (niveau ${g.level})` }));

@@ -35,7 +35,7 @@ local function spawn(def)
 end
 
 local function hidePrompt()
-    if promptFor then lib.hideTextUI() promptFor = nil end
+    if promptFor then Prompt.hide('ped') promptFor = nil end
 end
 
 RegisterNetEvent('illegal:client:peds', function(list)
@@ -67,10 +67,8 @@ CreateThread(function()
 
         if near and nearDist <= Config.Ped.interactDistance + 1.0 then
             wait = 0
-            if promptFor ~= near.groupId then
-                lib.showTextUI(('[E] Ouvrir le menu %s'):format(near.label))
-                promptFor = near.groupId
-            end
+            Prompt.show('ped', 'Appuyer pour ouvrir le menu', near.label)
+            promptFor = near.groupId
             if IsControlJustReleased(0, Config.Ped.key) and not IsTabletOpen() then
                 -- Le serveur vérifie la distance ET l'appartenance au groupe
                 TriggerServerEvent('illegal:server:open', 'ped', near.groupId)

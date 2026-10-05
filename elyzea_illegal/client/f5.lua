@@ -12,25 +12,30 @@ function OpenGroupTablet()
     TriggerServerEvent('illegal:server:open', 'f5')
 end
 
+local f5Open = false
+local function closeF5()
+    if not f5Open then return end
+    f5Open = false
+    SetNuiFocus(false, false)
+    SendNUIMessage({ action = 'f5close' })
+end
+
+-- Panneau « Menu › <Nom du groupe> » : même design que le menu rapide du staff
 local function openF5()
     if IsTabletOpen() or IsNuiFocused() or IsPauseMenuActive() then return end
     if not Membership.inGroup then return end   -- pas de groupe : F5 reste libre pour le reste du serveur
     if Config.F5.mode == 'direct' then return OpenGroupTablet() end
-    lib.registerContext({
-        id = 'illegal_f5',
-        title = 'Menu',
-        options = {
-            {
-                title = Membership.label,
-                description = Membership.grade ~= '' and ('Grade : ' .. Membership.grade) or nil,
-                icon = 'mask',
-                iconColor = Membership.color,
-                onSelect = OpenGroupTablet,
-            },
-        },
-    })
-    lib.showContext('illegal_f5')
+    f5Open = true
+    SetNuiFocus(true, true)
+    SendNUIMessage({ action = 'f5', data = { label = Membership.label, grade = Membership.grade, color = Membership.color } })
 end
+
+RegisterNUICallback('f5open', function(_, cb)
+    cb('ok')
+    closeF5()
+    OpenGroupTablet()
+end)
+RegisterNUICallback('f5close', function(_, cb) closeF5() cb('ok') end)
 
 if Config.F5.enabled then
     lib.addKeybind({

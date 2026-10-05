@@ -29,7 +29,7 @@ local function spawn(d)
     Spawned[d.groupId].entity = obj
 end
 
-local function hidePrompt() if prompt then lib.hideTextUI() prompt = nil end end
+local function hidePrompt() if prompt then Prompt.hide('stash') prompt = nil end end
 
 RegisterNetEvent('illegal:client:stashes', function(list)
     Defs = type(list) == 'table' and list or {}
@@ -58,7 +58,8 @@ CreateThread(function()
             end
             if near then
                 wait = 0
-                if prompt ~= near.groupId then lib.showTextUI(('[E] Ouvrir le coffre (%s)'):format(near.label)) prompt = near.groupId end
+                Prompt.show('stash', 'Appuyer pour ouvrir le coffre', near.label)
+                prompt = near.groupId
                 if IsControlJustReleased(0, 38) and not IsTabletOpen() then
                     TriggerServerEvent('illegal:server:openStash', near.groupId)
                     Wait(800)

@@ -72,6 +72,11 @@ membres (promouvoir, rétrograder, changer de grade, expulser, profil, recruter 
 supprimer, réorganiser, permissions), finances (argent propre / sale séparés, dépôt, retrait, historique),
 commandes (catalogue, commander, suivi de livraison, bouton « 📍 GPS ») et paramètres. Chaque bouton n'apparaît que si le grade le permet.
 
+## Interfaces
+Même design que le MenuStaff (styles repris tels quels de `admin_menu/html/style.css`) : tablette du groupe, fenêtres,
+notifications, menu **F5** (panneau du menu rapide F9) et invite **[E]** « APPUYER POUR … » + nom en doré
+pour le PNJ du groupe, le coffre et le sac de livraison.
+
 ## Sécurité
 - Le client n'envoie **jamais** son groupe : à chaque action le serveur relit personnage (Qbox) → groupe → grade → permission.
 - Hiérarchie : un joueur n'agit que sur les grades / membres **inférieurs** au sien et ne donne que des permissions qu'il possède.

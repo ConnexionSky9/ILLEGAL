@@ -8,11 +8,12 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Tablette du groupe : même structure que le MenuStaff -->
     <div id="app" class="hidden">
         <div class="screen">
             <div class="statusbar">
                 <img src="logo.png" class="sb-logo" alt="">
-                <span class="sb-title" id="sb-title">Illégal</span>
+                <span class="sb-title">Tablette <span id="sb-title">Illégal</span></span>
                 <span class="sb-spacer"></span>
                 <span class="sb-item" id="sb-via"></span>
                 <span class="sb-item" id="sb-clock"></span>
@@ -21,7 +22,7 @@
             <div class="body">
                 <aside class="sidebar">
                     <div class="brand">
-                        <div class="crest" id="crest"></div>
+                        <img src="logo.png" class="brand-logo" alt="">
                         <div class="brand-name" id="brand-name"></div>
                         <div class="brand-sub" id="brand-sub"></div>
                     </div>
@@ -33,6 +34,7 @@
                         </div>
                     </div>
                     <nav id="tabs"></nav>
+                    <div class="sidebar-foot" id="sidebar-foot"></div>
                 </aside>
                 <main>
                     <header class="topbar"><h1 id="page-title"></h1><p id="page-sub"></p></header>
@@ -41,6 +43,11 @@
             </div>
         </div>
     </div>
+
+    <!-- Menu F5 : même panneau que le menu rapide du staff -->
+    <div id="quick" class="hidden"></div>
+    <!-- Invite d'interaction [E] : même design que celle du MenuStaff -->
+    <div id="prompt" class="hidden" aria-live="polite"></div>
     <div id="modal-root"></div>
     <div id="toasts"></div>
     <script src="app.js"></script>

@@ -19,7 +19,7 @@ function PhoneNotify(title, msg)
         local ok = pcall(function() exports['lb-phone']:SendNotification({ app = 'Messages', title = title, content = msg }) end)
         if ok then return end
     end
-    lib.notify({ title = '📱 ' .. title, description = msg, type = 'inform', duration = 10000 })
+    Notify(('📱 %s : %s'):format(title, msg), 'warning')
     PlaySoundFrontend(-1, 'Text_Arrive_Tone', 'Phone_SoundSet_Default', true)
 end
 RegisterNetEvent('illegal:client:phone', function(title, msg) PhoneNotify(title, msg) end)
@@ -182,16 +182,17 @@ CreateThread(function()
             end
             if nearId then
                 wait = 0
-                if not prompt then lib.showTextUI('[E] Ramasser le sac') prompt = true end
+                Prompt.show('bag', 'Appuyer pour ramasser le sac', Active[nearId].data.order or 'Commande')
+                prompt = true
                 if IsControlJustReleased(0, 38) then
                     TriggerServerEvent('illegal:server:pickup', nearId)
                     Wait(1000)
                 end
             elseif prompt then
-                lib.hideTextUI() prompt = false
+                Prompt.hide('bag') prompt = false
             end
         elseif prompt then
-            lib.hideTextUI() prompt = false
+            Prompt.hide('bag') prompt = false
         end
         Wait(wait)
     end
@@ -203,6 +204,6 @@ end)
 
 AddEventHandler('onResourceStop', function(res)
     if res ~= GetCurrentResourceName() then return end
-    if prompt then lib.hideTextUI() end
+    if prompt then Prompt.hide('bag') end
     for id in pairs(Active) do removeDelivery(id) end
 end)

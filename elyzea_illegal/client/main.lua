@@ -5,8 +5,30 @@
 -- =========================================================
 Membership = { inGroup = false }
 
+-- Notifications : même rendu que celles du MenuStaff (en haut à droite)
+local KIND = { inform = 'info', info = 'info', success = 'success', error = 'error', warning = 'warning' }
 function Notify(msg, kind)
-    lib.notify({ title = 'Illégal', description = msg, type = kind or 'inform' })
+    SendNUIMessage({ action = 'notify', message = tostring(msg or ''), type = KIND[kind or 'inform'] or 'info' })
+end
+
+-- ---------------------------------------------------------
+--  Invite d'interaction [E] : même rendu que celle du MenuStaff
+--  (« APPUYER POUR … » + nom en doré). Une seule invite à la fois.
+-- ---------------------------------------------------------
+Prompt = {}
+local promptOwner, promptSig
+function Prompt.show(owner, verb, name, key)
+    if promptOwner and promptOwner ~= owner then return end   -- une autre invite est déjà affichée
+    local sig = ('%s|%s|%s'):format(verb, name, key or 'E')
+    promptOwner = owner
+    if sig == promptSig then return end
+    promptSig = sig
+    SendNUIMessage({ action = 'prompt', show = true, key = key or 'E', verb = verb, name = name })
+end
+function Prompt.hide(owner)
+    if not promptOwner or (owner and promptOwner ~= owner) then return end
+    promptOwner, promptSig = nil, nil
+    SendNUIMessage({ action = 'prompt', show = false })
 end
 RegisterNetEvent('illegal:client:notify', function(msg, kind) Notify(msg, kind) end)
 

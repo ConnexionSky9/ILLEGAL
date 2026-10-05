@@ -140,5 +140,41 @@ for (const fx of ['tablet_og', 'tablet_lieutenant', 'tablet_recrue_vagos']) {
     }
 }
 
+// ---------------------------------------------------------
+//  3. Invite [E], notifications et menu F5 : même rendu que le MenuStaff
+// ---------------------------------------------------------
+{
+    const els = {};
+    const winListeners = {};
+    const ctx = {
+        console, JSON, Object, Array, Number, String, Date, Math, Promise, Set, setInterval: () => 0, setTimeout: () => 0,
+        fetch: () => Promise.resolve({ json: () => ({}) }),
+        window: { addEventListener: (t, fn) => { (winListeners[t] = winListeners[t] || []).push(fn); } },
+        document: { querySelector: (s) => (els[s] = els[s] || el()), addEventListener: () => {}, documentElement: { style: { setProperty() {} } },
+            createElement: () => { const e = el(); e.className = ''; return e; } },
+    };
+    vm.createContext(ctx);
+    vm.runInContext(fs.readFileSync('elyzea_illegal/html/app.js', 'utf8'), ctx);
+    const send = (m) => winListeners.message.forEach((fn) => fn({ data: m }));
+    send({ action: 'prompt', show: true, key: 'E', verb: 'Appuyer pour ouvrir le coffre', name: 'Bloods · Planque' });
+    // Même balisage que l'invite du MenuStaff (admin_menu/html/script.js, case 'prompt')
+    const adminJs = fs.readFileSync('admin_menu/html/script.js', 'utf8');
+    check(adminJs.includes('<span class="pk">${esc(m.key || \'E\')}</span><span class="pt"><span class="pa">${esc(m.verb || \'\')}</span><span class="pn">${esc(m.name || \'\')}</span></span>'),
+        'référence : balisage de l\'invite du MenuStaff');
+    check(els['#prompt'].innerHTML === '<span class="pk">E</span><span class="pt"><span class="pa">Appuyer pour ouvrir le coffre</span><span class="pn">Bloods · Planque</span></span>',
+        'invite [E] : balisage identique au MenuStaff');
+    const css = fs.readFileSync('elyzea_illegal/html/style.css', 'utf8');
+    const adminCss = fs.readFileSync('admin_menu/html/style.css', 'utf8');
+    const rule = (src, sel) => { const i = src.indexOf(`${sel} {`); return i < 0 ? null : src.slice(i, src.indexOf('}', i) + 1); };
+    for (const sel of ['#prompt', '#prompt .pk', '#prompt .pa', '#prompt .pn', '.toast', '.modal', '.btn.primary', '.tab.active', '.q-panel', '#app', '.statusbar', '.stat', '.segmented'])
+        check(rule(css, sel) && rule(css, sel) === rule(adminCss, sel), `CSS « ${sel} » identique au MenuStaff`);
+    let added = null;
+    ctx.document.querySelector('#toasts').appendChild = (t) => { added = t; };
+    send({ action: 'notify', message: 'Commande récupérée', type: 'success' });
+    check(added && added.className === 'toast success' && added.textContent === 'Commande récupérée', 'notification au format du MenuStaff');
+    send({ action: 'f5', data: { label: 'Bloods', grade: 'OG', color: '#aa0000' } });
+    check(els['#quick'].innerHTML.includes('q-panel') && els['#quick'].innerHTML.includes('Bloods') && els['#quick'].innerHTML.includes('data-f5="open"'), 'menu F5 : panneau du menu rapide avec le groupe');
+}
+
 console.log(`\n${passed} réussis, ${failed} échoués`);
 process.exit(failed ? 1 : 0);
