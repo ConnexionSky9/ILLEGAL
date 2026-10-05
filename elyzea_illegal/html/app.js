@@ -82,25 +82,68 @@ window.addEventListener('message', (e) => {
         dprogress(m);
     } else if (m.action === 'missionEnd') {
         missionEnd(m);
+    } else if (m.action === 'codeInput') {
+        codeInput(m);
+    } else if (m.action === 'codeClose') {
+        $('#modal-root').innerHTML = '';
     }
 });
 
 /* ---------- Missions : compte à rebours, barre de progression (rendu du MenuStaff), fin ---------- */
-let hudTimer = null, hudEnd = 0;
+let hudTimer = null, hudEnd = 0, hudData = null;
+// HUD de mission : petit panneau discret (coin configurable). Les informations importantes
+// (codes, plaques, mots de passe…) restent affichées tant que le serveur les garde.
+const HUD_CAT = { objective: 'showObjective', clues: 'showClues', code: 'showCodes', password: 'showCodes', alert: 'showAlert' };
 function missionHud(m) {
     const el = $('#missionhud');
     clearInterval(hudTimer);
-    if (!m.show) { el.classList.add('hidden'); return; }
+    if (!m.show) { el.classList.add('hidden'); hudData = null; return; }
+    const cfg = m.cfg || {};
+    if (cfg.enabled === false) { el.classList.add('hidden'); return; }
+    hudData = m;
     hudEnd = Date.now() + (m.remaining || 0) * 1000;
+    const received = Date.now();
+    el.className = `compact pos-${cfg.position || 'top-right'}`;
+    el.style.setProperty('--hud-scale', cfg.scale || 1);
+    el.style.setProperty('--hud-alpha', cfg.opacity ?? 0.92);
+    const shown = (cat) => cfg[HUD_CAT[cat] || 'showInfo'] !== false;
     const draw = () => {
         const left = Math.max(0, Math.round((hudEnd - Date.now()) / 1000));
-        el.innerHTML = `<div class="jh-title">🎯 ${esc(m.label)}</div><div class="jh-time ${left <= 60 ? 'low' : ''}">${clock(left)}</div>
-            <div class="mh-stage">${esc(m.stage || '')}</div><div class="jh-reason">${esc(m.info || '')}</div>`;
+        const elapsed = (Date.now() - received) / 1000;
+        const info = arr(m.info).filter((x) => x.remaining === undefined || x.remaining === null || x.remaining - elapsed > 0);
+        const objInfo = info.find((x) => x.cat === 'objective');
+        const objective = objInfo ? objInfo.value : m.objective;
+        const rows = [];
+        if (objective && cfg.showObjective !== false) rows.push(`<div class="mh-sec"><span>OBJECTIF</span><b>${esc(objective)}</b></div>`);
+        arr(m.lines).forEach((l) => { if (shown(l.cat)) rows.push(`<div class="mh-row"><span>${esc(l.label)}</span><b>${esc(l.value)}</b></div>`); });
+        info.filter((x) => x.cat !== 'objective' && shown(x.cat)).forEach((x) => {
+            const imp = ['code', 'password', 'plate', 'phone'].includes(x.cat);
+            rows.push(`<div class="mh-row ${imp ? 'imp' : ''} ${x.used ? 'used' : ''} ${x.cat === 'alert' ? 'alert a' + m.alert : ''}"><span>${esc(x.label)}</span>
+                <b>${esc(x.value)}${x.used ? ' <i>utilisé</i>' : ''}</b></div>`);
+        });
+        if (cfg.showTimer !== false) rows.push(`<div class="mh-row time ${left <= 60 ? 'low' : ''}"><span>TEMPS</span><b>${clock(left)}</b></div>`);
+        el.innerHTML = `<div class="mh-head">MISSION EN COURS<small>${esc(m.label || '')}</small></div>${rows.join('')}`;
     };
     draw();
     hudTimer = setInterval(draw, 1000);
     el.classList.remove('hidden');
 }
+
+/* ---------- Saisie du code d'une caisse (vérifié par le serveur) ---------- */
+function codeInput(m) {
+    $('#modal-root').innerHTML = `<div class="modal-backdrop"><div class="modal" style="width:380px">
+        <h2>Caisse n°${Number(m.crate)} — code</h2>
+        <p class="hint">Entre le code. ${hudData && arr(hudData.info).find((x) => x.cat === 'code' && !x.used) ? 'Le code trouvé est affiché dans le HUD de mission.' : 'Le code se trouve dans un indice ou dans la cabine du fourgon.'}</p>
+        <div class="field"><input class="input" id="code-in" maxlength="12" autocomplete="off" style="font:700 26px var(--display);letter-spacing:.3em;text-align:center"></div>
+        <div class="btn-row"><button class="btn danger" data-cm="force">Forcer (alarme)</button><span style="flex:1"></span>
+            <button class="btn" data-cm="cancel">Annuler</button><button class="btn primary" data-cm="code">Valider</button></div></div></div>`;
+    const input = $('#code-in');
+    if (input) input.focus();
+    const done = (action) => { const code = input ? input.value.trim() : ''; $('#modal-root').innerHTML = ''; post('codeResult', { action, code }); };
+    $('#modal-root').onclick = (e) => { const b = e.target.closest('[data-cm]'); if (b) done(b.dataset.cm); };
+    if (input) input.onkeydown = (e) => { if (e.key === 'Enter') done('code'); if (e.key === 'Escape') done('cancel'); };
+}
+
 function dprogress(m) {
     const el = $('#dprogress');
     clearInterval(window.__dpT);

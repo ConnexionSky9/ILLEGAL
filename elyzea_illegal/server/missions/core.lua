@@ -204,7 +204,16 @@ end
 -- =========================================================
 --  CONFIGURATION DES MISSIONS
 -- =========================================================
-local COMMON = { general = true, groups = true, timer = true, cooldown = true, phone = true, rewards = true, weapons = true, security = true }
+local COMMON = { general = true, groups = true, timer = true, cooldown = true, phone = true, rewards = true, weapons = true, security = true, hud = true }
+local DIFFICULTY = { easy = true, normal = true, hard = true, extreme = true }
+local HUD_POS = { ['top-right'] = true, ['top-left'] = true, ['bottom-right'] = true, ['bottom-left'] = true, ['right'] = true, ['left'] = true }
+
+-- HUD de mission : réglages par défaut (toutes les missions)
+function Missions.hudDefaults()
+    return { enabled = true, position = 'top-right', scale = 1.0, opacity = 0.92,
+        showTimer = true, showObjective = true, showClues = true, showCodes = true, showInfo = true, showAlert = true,
+        persistent = true, tempSeconds = 60, usedMode = 'mark', share = true }
+end
 local ACCOUNTS = { clean = true, dirty = true }
 local WEAPON_ACTIONS = { none = true, warn = true, fail = true }
 
@@ -217,6 +226,8 @@ local function sanitizeCommon(section, d, cur)
         if minP > maxP then return nil, 'Le nombre minimum de joueurs dépasse le maximum.' end
         return { label = label, description = U.text(d.description, 300, true), enabled = bool(d.enabled, cur.enabled),
             levelRequired = int(d.levelRequired, 0, 100, cur.levelRequired), xp = int(d.xp, 0, 1000000, cur.xp),
+            xpMax = int(d.xpMax, 0, 1000000, cur.xpMax or 0),
+            difficulty = DIFFICULTY[d.difficulty] and d.difficulty or (cur.difficulty or 'normal'),
             minPlayers = minP, maxPlayers = maxP }
     elseif section == 'groups' then
         local list = {}
@@ -252,6 +263,14 @@ local function sanitizeCommon(section, d, cur)
     elseif section == 'weapons' then
         return { firearms = bool(d.firearms, cur.firearms), melee = bool(d.melee, cur.melee), explosives = bool(d.explosives, cur.explosives),
             vehicles = bool(d.vehicles, cur.vehicles), action = WEAPON_ACTIONS[d.action] and d.action or cur.action }
+    elseif section == 'hud' then
+        local h = cur or Missions.hudDefaults()
+        return { enabled = bool(d.enabled, h.enabled), position = HUD_POS[d.position] and d.position or h.position,
+            scale = num(d.scale, 0.6, 1.6, h.scale), opacity = num(d.opacity, 0.3, 1, h.opacity),
+            showTimer = bool(d.showTimer, h.showTimer), showObjective = bool(d.showObjective, h.showObjective), showClues = bool(d.showClues, h.showClues),
+            showCodes = bool(d.showCodes, h.showCodes), showInfo = bool(d.showInfo, h.showInfo), showAlert = bool(d.showAlert, h.showAlert),
+            persistent = bool(d.persistent, h.persistent), tempSeconds = int(d.tempSeconds, 5, 3600, h.tempSeconds),
+            usedMode = d.usedMode == 'remove' and 'remove' or 'mark', share = bool(d.share, h.share) }
     elseif section == 'security' then
         return { participantRadius = num(d.participantRadius, 5, 1000, cur.participantRadius),
             interactDistance = num(d.interactDistance, 1, 10, cur.interactDistance),
@@ -367,15 +386,132 @@ end
 -- =========================================================
 --  DÉROULÉ D'UNE MISSION
 -- =========================================================
+-- =========================================================
+--  INFORMATIONS IMPORTANTES (HUD de mission)
+--  Codes, plaques, mots de passe… enregistrés par le serveur et affichés
+--  dans le HUD tant qu'ils sont utiles. Partagés à tous les participants
+--  (réglage « share ») ou seulement à celui qui les a découverts.
+--  cat : objective | code | plate | password | phone | address | location | clue | info
+-- =========================================================
+function Missions.info(run, src, key, label, value, cat, opts)
+    opts = opts or {}
+    local hud = run.cfg.hud or Missions.hudDefaults()
+    local entry = { key = key, label = label, value = tostring(value), cat = cat or 'info', used = false, order = opts.order or 50,
+        expires = (not hud.persistent and not opts.persistent) and (os.time() + hud.tempSeconds) or nil }
+    if hud.share or not src then
+        run.infos = run.infos or {}
+        run.infos[key] = entry
+    else
+        run.privateInfos = run.privateInfos or {}
+        run.privateInfos[src] = run.privateInfos[src] or {}
+        run.privateInfos[src][key] = entry
+    end
+    return entry
+end
+
+-- Information plus utile : marquée « utilisé » ou retirée (réglage « usedMode »)
+function Missions.useInfo(run, key)
+    local hud = run.cfg.hud or Missions.hudDefaults()
+    local function apply(t)
+        if t and t[key] then
+            if hud.usedMode == 'remove' then t[key] = nil else t[key].used = true end
+        end
+    end
+    apply(run.infos)
+    for _, t in pairs(run.privateInfos or {}) do apply(t) end
+end
+
+function Missions.dropInfo(run, key)
+    if run.infos then run.infos[key] = nil end
+    for _, t in pairs(run.privateInfos or {}) do t[key] = nil end
+end
+
+function Missions.knows(run, src, key)
+    return (run.infos and run.infos[key] ~= nil) or (run.privateInfos and run.privateInfos[src] and run.privateInfos[src][key] ~= nil)
+end
+
+local function infoList(run, src)
+    local out, now = {}, os.time()
+    local function add(t)
+        for _, e in pairs(t or {}) do
+            if not e.expires or e.expires > now then
+                out[#out + 1] = { key = e.key, label = e.label, value = e.value, cat = e.cat, used = e.used, order = e.order,
+                    remaining = e.expires and (e.expires - now) or nil }
+            end
+        end
+    end
+    add(run.infos)
+    add(run.privateInfos and run.privateInfos[src])
+    table.sort(out, function(a, b) if a.order ~= b.order then return a.order < b.order end return a.label < b.label end)
+    return out
+end
+
 function Missions.payload(run, src)
     local def = Missions.types[run.type]
     local base = {
         runId = run.id, missionId = run.missionId, type = run.type, label = run.cfg.general.label, group = run.groupLabel,
         remaining = math.max(0, run.deadline - os.time()), participants = names(run),
         weapons = run.cfg.weapons, interactDistance = run.cfg.security.interactDistance,
+        hud = run.cfg.hud or Missions.hudDefaults(),
     }
     if def.payload then def.payload(run, src, base) end
+    base.info = infoList(run, src)
+    base.alert = run.alert or 0
     return base
+end
+
+-- =========================================================
+--  POLICE : seuls les policiers en service (système d'admin_menu), position
+--  approximative calculée par le serveur, dispatch elyzea_police s'il existe.
+--  lvl : { radius, sprite, color, seconds, title, message, code, dispatch }
+-- =========================================================
+function Missions.onDutyPolice()
+    local res = Config.AdminResource
+    if GetResourceState(res) == 'started' then
+        local ok, list = pcall(function() return exports[res]:GetOnDutyPolice() end)
+        if ok and type(list) == 'table' then return list end
+    end
+    -- Secours : métier Qbox de la liste Config.Missions.policeJobs, en service
+    local jobs = {}
+    for _, j in ipairs(Config.Missions.policeJobs or {}) do jobs[j] = true end
+    local list = {}
+    for _, p in ipairs(GetPlayers()) do
+        local pl = Players.get(tonumber(p))
+        local job = pl and pl.PlayerData and pl.PlayerData.job
+        if job and jobs[job.name] and job.onduty ~= false then list[#list + 1] = tonumber(p) end
+    end
+    return list
+end
+
+function Missions.policeAlert(run, lvl, x, y, z)
+    if not lvl then return 0 end
+    local r = (lvl.radius or 300) * math.sqrt(math.random())
+    local a = math.random() * math.pi * 2
+    local px, py = x + math.cos(a) * r, y + math.sin(a) * r
+    local cops = Missions.onDutyPolice()
+    local alert = { x = px, y = py, z = z, radius = lvl.radius or 300, sprite = lvl.sprite or 161, color = lvl.color or 1,
+        seconds = lvl.seconds or 120, title = lvl.title or 'Activité suspecte', message = lvl.message or '' }
+    for _, cop in ipairs(cops) do TriggerClientEvent('illegal:client:policeAlert', cop, alert) end
+    local policeRes = (Config.Missions.policeResource or 'elyzea_police')
+    if lvl.dispatch ~= false and GetResourceState(policeRes) == 'started' then
+        pcall(function()
+            exports[policeRes]:SendDispatch({ coords = { x = px, y = py, z = z }, title = alert.title, message = alert.message,
+                code = lvl.code or '10-31', priority = lvl.priority or 2 })
+        end)
+    end
+    run.policeAlerted = true
+    Log({ name = 'Système' }, run.groupId, 'Mission : police prévenue', ('%s · %d policier(s) en service · rayon %d m'):format(run.cfg.general.label, #cops, math.floor(alert.radius)))
+    return #cops
+end
+
+-- Position de l'admin (« Définir à ma position » dans ILLEGAL › Missions)
+Missions.adminPos = {}
+function Missions.myPosition(src)
+    local pos = Groups.positionOf(src)
+    if not pos then return false, 'Position introuvable.' end
+    Missions.adminPos[src] = { x = math.floor(pos.x * 100) / 100, y = math.floor(pos.y * 100) / 100, z = math.floor(pos.z * 100) / 100,
+        h = math.floor(pos.h * 10) / 10, t = GetGameTimer() }
+    return true
 end
 
 function Missions.push(run, only)
@@ -530,7 +666,7 @@ function Missions.finish(run, status, reason, reward)
         TriggerClientEvent('illegal:client:missionEnd', src, { runId = run.id, success = success,
             message = success and 'MISSION TERMINÉE' or ('MISSION ÉCHOUÉE' .. (reason and (' : ' .. reason) or '')) })
     end
-    if run.dbId then DB.endRun(run.dbId, status, reward, success and run.cfg.general.xp or 0, run.participantList) end
+    if run.dbId then DB.endRun(run.dbId, status, reward, success and (reward and reward.xp or run.cfg.general.xp) or 0, run.participantList) end
     Log({ name = 'Système' }, run.groupId, success and 'Mission terminée' or 'Mission échouée', ('%s · %s%s'):format(run.cfg.general.label, run.groupLabel,
         reason and (' · ' .. reason) or ''))
     Sync.group(run.groupId)
@@ -543,10 +679,13 @@ function Missions.complete(run, src)
     local cfg = run.cfg
     local actor = { src = src, name = run.names[src] or 'Mission', cid = run.participants[src] }
     local reward = { money = 0, items = {} }
+    local def = Missions.types[run.type]
+    local bonus = def.bonus and def.bonus(run) or { money = 0, xp = 0, items = {}, labels = {} }
     if g then
         local m = cfg.rewards.money
-        if m.enabled and m.max > 0 then
-            local amount = math.random(m.min, m.max)
+        if (m.enabled and m.max > 0) or bonus.money > 0 then
+            local amount = (m.enabled and m.max > 0) and math.random(m.min, m.max) or 0
+            amount = amount + bonus.money
             if amount > 0 then
                 local ok = Finances.missionReward(actor, g, m.account, amount, ('Mission : %s'):format(cfg.general.label))
                 if ok then
@@ -556,9 +695,12 @@ function Missions.complete(run, src)
                 end
             end
         end
-        if cfg.rewards.items.enabled then
-            for _, it in ipairs(cfg.rewards.items.list) do
-                if math.random() * 100 < it.chance then
+        local itemList = {}
+        if cfg.rewards.items.enabled then for _, it in ipairs(cfg.rewards.items.list) do itemList[#itemList + 1] = it end end
+        for _, it in ipairs(bonus.items) do itemList[#itemList + 1] = it end
+        do
+            for _, it in ipairs(itemList) do
+                if math.random() * 100 < (it.chance or 100) then
                     local count = math.random(it.min, it.max)
                     local ok = Stashes and Stashes.addItem(g, it.item, count)
                     if ok then reward.items[#reward.items + 1] = { item = it.item, count = count } end
@@ -567,9 +709,17 @@ function Missions.complete(run, src)
                 end
             end
         end
-        if cfg.general.xp > 0 then
-            Progress.change(actor, g, 'add', cfg.general.xp, ('Mission %s (+%d XP)'):format(cfg.general.label, cfg.general.xp), cfg)
-            Log(actor, g.id, 'Récompense : XP', ('+%d XP pour %s'):format(cfg.general.xp, g.label))
+        local xp = cfg.general.xp
+        if (cfg.general.xpMax or 0) > xp then xp = math.random(xp, cfg.general.xpMax) end
+        xp = xp + bonus.xp
+        reward.xp = xp
+        if xp > 0 then
+            Progress.change(actor, g, 'add', xp, ('Mission %s (+%d XP)'):format(cfg.general.label, xp), cfg)
+            Log(actor, g.id, 'Récompense : XP', ('+%d XP pour %s'):format(xp, g.label))
+        end
+        if #bonus.labels > 0 then
+            Log(actor, g.id, 'Récompense : bonus', ('%s : %s'):format(cfg.general.label, table.concat(bonus.labels, ', ')))
+            for s in pairs(run.participants) do Players.notify(s, ('Bonus : %s'):format(table.concat(bonus.labels, ', ')), 'success') end
         end
     end
     for s in pairs(run.participants) do phone(s, cfg, cfg.phone.finish) end
@@ -643,7 +793,11 @@ AddEventHandler('weaponDamageEvent', function(sender, data)
     for _, netId in ipairs(ids) do
         local ent = NetworkGetEntityFromNetworkId(tonumber(netId) or 0)
         local run = ent and ent ~= 0 and Missions.runOfEntity(ent)
-        if run and run.participants[src] then Missions.violation(run, src, Missions.weaponKind(data.weaponType)) end
+        if run and run.participants[src] then
+            Missions.violation(run, src, Missions.weaponKind(data.weaponType))
+            local def = Missions.types[run.type]
+            if not run.ended and def.onDamage then def.onDamage(run, src, ent) end
+        end
     end
 end)
 
@@ -707,7 +861,7 @@ function Missions.tabletData(ctx)
     return { progress = Progress.info(g), list = list, active = active, canStart = Cache.hasPerm(ctx.grade, 'missions_start'), boss = ctx.grade.boss }
 end
 
-function Missions.adminData()
+function Missions.adminData(src)
     local list = {}
     for id, cfg in pairs(Missions.configs) do
         local c = copy(cfg)
@@ -728,13 +882,93 @@ function Missions.adminData()
         groups[#groups + 1] = info
     end
     table.sort(groups, function(a, b) return a.groupLabel:lower() < b.groupLabel:lower() end)
-    return { levels = Missions.levels, list = list, active = active, groups = groups,
-        behaviors = Config.Missions.behaviors, weaponActions = Config.Missions.weaponActions }
+    -- Formulaires des missions : sections et schéma de chaque type (le menu génère les champs)
+    local types = {}
+    for key, def in pairs(Missions.types) do types[key] = { label = def.label, sections = def.sections, schema = def.schema } end
+    return { levels = Missions.levels, list = list, active = active, groups = groups, types = types,
+        behaviors = Config.Missions.behaviors, weaponActions = Config.Missions.weaponActions,
+        myPos = src and Missions.adminPos[src] or nil }
 end
 
 -- =========================================================
 --  CHARGEMENT
 -- =========================================================
+-- =========================================================
+--  SCHÉMAS : description des réglages d'un type de mission.
+--  Le serveur nettoie chaque valeur reçue avec le schéma ; le menu staff
+--  génère les formulaires avec le même schéma (aucun champ inconnu accepté).
+--  Champ : { key, label, t = text|textarea|int|num|bool|select|model|anim|point|list|object, def, min, max,
+--           options = { {value,label} }, fields = {…} (object / éléments d'une list), max (taille de list) }
+-- =========================================================
+local function sanitizeField(f, v, cur)
+    local t = f.t
+    if t == 'object' then
+        local out = {}
+        local src = type(v) == 'table' and v or {}
+        local c = type(cur) == 'table' and cur or {}
+        for _, sub in ipairs(f.fields) do out[sub.key] = sanitizeField(sub, src[sub.key], c[sub.key]) end
+        return out
+    elseif t == 'list' then
+        local out = {}
+        for i, item in ipairs(type(v) == 'table' and v or {}) do
+            if #out >= (f.max or 50) then break end
+            out[#out + 1] = sanitizeField({ t = 'object', fields = f.fields }, item, type(cur) == 'table' and cur[i] or nil)
+        end
+        return out
+    elseif t == 'point' then
+        local c = U.coords(v)
+        if c then return { x = c.x, y = c.y, z = c.z, h = c.h } end
+        return type(cur) == 'table' and cur or { x = 0.0, y = 0.0, z = 0.0, h = 0.0 }
+    end
+    local def = cur
+    if def == nil then def = f.def end
+    if t == 'bool' then return bool(v, def == true)
+    elseif t == 'int' then return int(v, f.min or 0, f.max or 1000000, def or 0)
+    elseif t == 'num' then return num(v, f.min or 0, f.max or 1000000, def or 0.0)
+    elseif t == 'select' then
+        for _, o in ipairs(f.options) do if o.value == v then return v end end
+        return def
+    elseif t == 'model' then
+        local s = U.text(v, 64, true)
+        if s == '' and f.optional then return '' end
+        if s and s:match('^[%w_]+$') then return s end
+        return def or ''
+    elseif t == 'anim' then
+        local s = U.text(v, 80, true)
+        if s == '' then return '' end
+        if s and s:match('^[%w_@%.%-/]+$') then return s end
+        return def or ''
+    elseif t == 'textarea' then
+        local s = U.text(v, f.max or 500, true)
+        if s == nil then return def or '' end
+        return s
+    else
+        local s = U.text(v, f.max or 120, true)
+        if s == nil then return def or '' end
+        if s == '' and f.required then return def or '' end
+        return s
+    end
+end
+Missions.sanitizeField = sanitizeField
+
+-- Valeurs par défaut d'un champ (pour compléter une configuration)
+function Missions.schemaDefault(f)
+    if f.t == 'object' then
+        local o = {}
+        for _, sub in ipairs(f.fields) do o[sub.key] = Missions.schemaDefault(sub) end
+        return o
+    elseif f.t == 'list' then return copy(f.def or {})
+    elseif f.t == 'point' then return copy(f.def or { x = 0.0, y = 0.0, z = 0.0, h = 0.0 }) end
+    return copy(f.def)
+end
+
+-- Réglages communs ajoutés depuis (HUD, XP aléatoire, difficulté) sur toute mission
+function Missions.withCommon(cfg)
+    cfg.hud = fill(cfg.hud or {}, Missions.hudDefaults())
+    fill(cfg.general, { xpMax = 0, difficulty = 'normal' })
+    return cfg
+end
+
 function Missions.load()
     DB.closeStaleRuns()
     local d = DB.loadMissions()
@@ -756,12 +990,12 @@ function Missions.load()
         local ok, cfg = pcall(json.decode, r.config)
         if def and ok and type(cfg) == 'table' then
             cfg.type = r.type
-            Missions.configs[r.id] = fill(cfg, def.defaults(r.id))
+            Missions.configs[r.id] = Missions.withCommon(fill(cfg, def.defaults(r.id)))
         end
     end
     for id, typ in pairs(Missions.defaults) do
         if not Missions.configs[id] and Missions.types[typ] then
-            local cfg = Missions.types[typ].defaults(id)
+            local cfg = Missions.withCommon(Missions.types[typ].defaults(id))
             cfg.type = typ
             Missions.configs[id] = cfg
             DB.saveMission(id, typ, cfg)

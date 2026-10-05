@@ -27,7 +27,7 @@ Un ancien `config.lua` reste utilisable : les réglages ajoutés depuis sont com
 ## Ce qui a été ajouté dans admin_menu (et rien d'autre)
 | Fichier | Modification |
 |---|---|
-| `server/illegal.lua` | **nouveau** : pont vers cette ressource (même modèle que Concession / LsCustom) + groupes ILLEGAL dans les coffres de l'éditeur de map |
+| `server/illegal.lua` | **nouveau** : pont vers cette ressource (même modèle que Concession / LsCustom) + groupes ILLEGAL dans les coffres de l'éditeur de map + export `GetOnDutyPolice` (policiers en service via `Bridge.IsPolice`, système existant du menu) |
 | `html/illegal.js` | **nouveau** : onglet ILLEGAL (réutilise les composants du menu : `formModal`, `confirmBox`, `.section`, `.stats`, `.segmented`…) |
 | `fxmanifest.lua` | +2 lignes : `server/illegal.lua`, `html/illegal.js` |
 | `html/index.html` | +1 ligne : `<script src="illegal.js">` |
@@ -100,6 +100,32 @@ cooldown, lancement (permission de grade « Lancer une mission illégale », le 
 - Réutilise l'existant : finances du groupe (`Finances.missionReward`), inventaire du coffre (`Stashes.addItem`), téléphone (`PhoneNotify` / lb-phone),
   invite et notifications du MenuStaff, logs (`Log` → onglet Logs du menu + Discord), oxmysql.
 
+### Mission niveau 1 : « Le Fourgon Fantôme »
+**Staff : ILLEGAL › Missions › Niveau 1 › Le Fourgon Fantôme** — sections générées depuis le schéma du serveur :
+Général · Groupes · Progression · HUD · Scénarios · Recherche · Emplacements · Fourgon · Ennemis · Caisses · Alarmes · Renforts · Transport ·
+Livraison · Timer · Récompenses · Bonus · Téléphone · Cooldown · Armes · Sécurité. Toutes les positions : **X / Y / Z / Heading** +
+**📍 Définir à ma position** (position relevée par le serveur) + **Y aller**. Aucun mode placement. Listes : ajouter, dupliquer, déplacer,
+activer / désactiver, supprimer (scénarios, emplacements, indices, ennemis, vagues, relais, points de livraison…).
+
+Déroulé (machine à états serveur) : `SEARCH_AREA → FIND_CLUES → LOCATE_VAN → INVESTIGATE_VAN → RECOVER_CARGO → TRANSPORT → RELAY → FINAL_DELIVERY → SUCCESS / FAILED`
+- Lancement : groupe, **niveau 1** (réglable), cooldowns vérifiés par le serveur ; message du numéro inconnu ; timer 30 min ; d'autres membres peuvent rejoindre.
+- Zone de recherche **approximative** → indices (**ALT**) → N indices (réglable) → position exacte ou approximative du fourgon.
+- Scénarios A–E (abandonné, accident, surveillé, faux fourgon, déplacé) + scénarios personnalisés, activables, autorisés par emplacement.
+- Fourgon : cabine (le code — et le mot de passe du relais si exigé — y est **toujours** trouvable, même pendant le transport), arrière ouvert ou forcé.
+- Caisses : la vraie est tirée par le serveur ; caisses sécurisées à code (**vérifié par le serveur**, blocage après N essais → forcer) ;
+  fausses caisses : vide / faux contenu / alarme / embuscade (poids réglables).
+- Alarmes : déclencheurs (mauvaise caisse, mauvais code, forçage, détection, récupération, faux fourgon) → alertes 1 à 3 (jamais à la baisse) :
+  **seuls les policiers en service** reçoivent un blip approximatif (rayon, icône, couleur, durée réglables) + dispatch `elyzea_police` s'il existe.
+- Renforts : vagues par niveau d'alerte, avec ou sans véhicules, délai, **toujours loin des joueurs** (distance min / max, points de spawn optionnels).
+- Transport : porteur unique ; porteur mort ou parti → marchandise au sol, à ramasser ; point relais (zone / PNJ / véhicule, mot de passe optionnel),
+  véhicule de transfert (clés `qbx_vehiclekeys`), poursuite optionnelle.
+- Livraison **ALT** au commanditaire → « Merci pour le service rendu ! » → argent + objets **dans le coffre du groupe** + XP (fixe ou aléatoire min–max)
+  + bonus (temps restant, aucune alarme, aucune mauvaise caisse, aucun mort, aucune police, sans perte).
+- **HUD** discret et configurable (position, taille, opacité, catégories) : objectif, codes, plaques, mots de passe, indices, alerte, timer.
+  Les informations importantes **restent affichées** tant qu'elles sont utiles, puis sont marquées « utilisé » ou retirées (réglage) ;
+  partage entre participants **ON / OFF** (serveur). Une notification n'est jamais le seul endroit où une information importante apparaît.
+- Échec (timer, plus de participants, abandon, arme interdite en mode « échec ») : ennemis, véhicules, objets et blips nettoyés, aucune récompense.
+
 ## Interfaces
 Même design que le MenuStaff (styles repris tels quels de `admin_menu/html/style.css`) : tablette du groupe, fenêtres,
 notifications, menu **F5** (panneau du menu rapide F9) et invite **[E]** « APPUYER POUR … » + nom en doré
@@ -158,4 +184,4 @@ html/                 tablette du groupe
 
 ## Tests (hors jeu)
 Depuis la racine du dépôt : `lua5.4 tests/run.lua` (serveur : permissions, hiérarchie, argent, isolation des groupes, persistance…),
-`lua5.4 tests/bridge.lua` (pont admin_menu, coffres), `lua5.4 tests/startup.lua` (fichiers manquants), `lua5.4 tests/missions.lua` (missions) et `FIXTURES=/tmp/fx lua5.4 tests/run.lua && FIXTURES=/tmp/fx node tests/ui.js` (rendu des interfaces).
+`lua5.4 tests/bridge.lua` (pont admin_menu, coffres), `lua5.4 tests/startup.lua` (fichiers manquants), `lua5.4 tests/missions.lua` (missions), `lua5.4 tests/fourgon.lua` (Fourgon Fantôme) et `FIXTURES=/tmp/fx lua5.4 tests/run.lua && FIXTURES=/tmp/fx node tests/ui.js` (rendu des interfaces).

@@ -107,7 +107,7 @@ exports('AdminData', function(src)
         selected = sel and groupDetail(sel) or nil,
         spots = spots, defaultSpots = #Config.Delivery.defaultSpots, now = os.time(),
         items = items,
-        missions = (Missions and Missions.ready) and Missions.adminData() or nil,
+        missions = (Missions and Missions.ready) and Missions.adminData(src) or nil,
         delivery = { prepareMinutes = Config.Delivery.prepareMinutes, minDistance = Config.Delivery.minDistance,
             requireValidation = Config.Orders.requireValidation },
         stashConfig = { models = Config.Stash.models, defaultWeight = Config.Stash.defaultWeight, defaultSlots = Config.Stash.defaultSlots,
@@ -219,6 +219,16 @@ A.missionTp = function(src, d)
     TriggerClientEvent('adminmenu:teleport', src, { x = p.x, y = p.y, z = p.z + 1.0 })
     return true
 end
+A.missionMyPos = function(src)
+    local ok, err = needMissions() if not ok then return ok, err end
+    return Missions.myPosition(src)
+end
+A.missionTpPos = function(src, d)
+    local c = U.coords(d)
+    if not c then return false, 'Coordonnées invalides.' end
+    TriggerClientEvent('adminmenu:teleport', src, { x = c.x, y = c.y, z = c.z + 1.0 })
+    return true
+end
 A.missionStop = function(src, d)
     local ok, err = needMissions() if not ok then return ok, err end
     return Missions.stop(staffActor(src), d.runId)
@@ -240,7 +250,7 @@ A.refuseRequest = function(src, d, g) return Orders.refuse(staffActor(src), g, U
 
 -- Actions qui n'ont pas besoin d'un groupe existant
 local NO_GROUP = { select = true, back = true, createGroup = true, loadItems = true, addSpot = true, removeSpot = true, gotoSpot = true,
-    missionSave = true, missionPoint = true, missionTp = true, missionStop = true, levelsSave = true }
+    missionSave = true, missionPoint = true, missionTp = true, missionStop = true, levelsSave = true, missionMyPos = true, missionTpPos = true }
 -- Commandes « tous les groupes » : le groupe est facultatif
 local OPTIONAL_GROUP = { createOrder = true, updateOrder = true, deleteOrder = true }
 

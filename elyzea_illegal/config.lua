@@ -136,6 +136,9 @@ Config.Missions = {
         { label = 'Intouchables',   xp = 2000 },
     },
     levelUpMessage = 'Ton groupe passe niveau {level} ({label}).',
+    -- Police : policiers en service détectés par admin_menu (Config.PoliceJobs) ; secours si admin_menu est absent
+    policeJobs = { 'police', 'sheriff', 'lspd', 'bcso', 'sasp' },
+    policeResource = 'elyzea_police',   -- dispatch utilisé s'il est démarré (exports SendDispatch)
     behaviors = {
         { key = 'passive',         label = 'Passif (n\'attaque jamais)' },
         { key = 'wary',            label = 'Méfiant (agressif si on s\'approche)' },

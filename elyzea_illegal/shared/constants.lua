@@ -33,6 +33,7 @@ fill(Config, {
         levels = { { label = 'Niveau 0', xp = 0 }, { label = 'Niveau 1', xp = 100 }, { label = 'Niveau 2', xp = 250 },
             { label = 'Niveau 3', xp = 500 }, { label = 'Niveau 4', xp = 1000 }, { label = 'Niveau 5', xp = 2000 } },
         levelUpMessage = 'Ton groupe passe niveau {level} ({label}).',
+        policeJobs = { 'police', 'sheriff', 'lspd', 'bcso', 'sasp' }, policeResource = 'elyzea_police',
         behaviors = { { key = 'passive', label = 'Passif' }, { key = 'wary', label = 'Méfiant' }, { key = 'aggressive', label = 'Agressif' },
             { key = 'very_aggressive', label = 'Très agressif' } },
         weaponActions = { { key = 'none', label = 'Rien' }, { key = 'warn', label = 'Avertissement' }, { key = 'fail', label = 'Échec' } },

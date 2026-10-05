@@ -138,6 +138,7 @@ local resources = {
             weed = { name = 'weed', label = 'Cannabis' } } end,
     },
     admin_menu = {
+        GetOnDutyPolice = function() local t = {} for src, p in pairs(M.players) do if p.police then t[#t + 1] = src end end return t end,
         HasPermission = function(_, src, perm) local p = M.players[tonumber(src)] return p ~= nil and p.staff and perm == 'illegal_staff' end,
         AddLog = function() end,
     },
@@ -164,11 +165,23 @@ function GetEntityCoords(ent)
 end
 function CreatePed(_, hash, x, y, z, h)
     entSeq = entSeq + 1
-    M.entities[entSeq] = { coords = vector3(x, y, z), health = 200, hash = hash, state = {} }
+    M.entities[entSeq] = { coords = vector3(x, y, z), health = 200, hash = hash, state = {}, heading = h, kind = 'ped' }
     return entSeq
 end
+function CreateVehicleServerSetter(hash, _, x, y, z, h)
+    entSeq = entSeq + 1
+    M.entities[entSeq] = { coords = vector3(x, y, z), health = 1000, hash = hash, state = {}, heading = h, kind = 'vehicle' }
+    return entSeq
+end
+function SetVehicleNumberPlateText(e, p) if M.entities[e] then M.entities[e].plate = p end end
+function GetVehicleNumberPlateText(e) return M.entities[e] and M.entities[e].plate or '' end
+function SetVehicleDoorsLocked(e, s) if M.entities[e] then M.entities[e].locked = s end end
+function SetPedIntoVehicle(p, v, seat) if M.entities[p] then M.entities[p].vehicle, M.entities[p].seat = v, seat end end
 function DoesEntityExist(e) return M.entities[e] ~= nil end
-function GetEntityHealth(e) return M.entities[e] and M.entities[e].health or 0 end
+function GetEntityHealth(e)
+    if M.players[e] then return M.players[e].health or 200 end
+    return M.entities[e] and M.entities[e].health or 0
+end
 function DeleteEntity(e) M.entities[e] = nil end
 function NetworkGetEntityFromNetworkId(id) return id end
 function NetworkGetNetworkIdFromEntity(e) return e end
@@ -184,7 +197,10 @@ function GetHashKey(s)
     return h > 2147483647 and h - 4294967296 or h
 end
 joaat = GetHashKey
-function GetEntityHeading(ped) return M.players[ped].heading end
+function GetEntityHeading(e)
+    if M.players[e] then return M.players[e].heading end
+    return M.entities[e] and M.entities[e].heading or 0.0
+end
 local timer = 0
 function GetGameTimer() timer = timer + 1 return timer end
 function M.advance(ms) timer = timer + ms end
@@ -198,7 +214,15 @@ function CreateThread(fn)
     if coroutine.status(co) ~= 'dead' then M.threads[#M.threads + 1] = co end
 end
 function Wait() coroutine.yield() end
-function M.tick() for _, co in ipairs(M.threads) do assert(coroutine.resume(co)) end M.flush() end
+function M.tick()
+    local live = {}
+    for _, co in ipairs(M.threads) do
+        if coroutine.status(co) ~= 'dead' then assert(coroutine.resume(co)) end
+        if coroutine.status(co) ~= 'dead' then live[#live + 1] = co end
+    end
+    M.threads = live
+    M.flush()
+end
 function PerformHttpRequest() end
 function LoadResourceFile() return nil end
 function RegisterNetEvent(name, fn) if fn then M.net[name] = fn end end

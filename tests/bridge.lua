@@ -15,7 +15,7 @@ exports = setmetatable({}, { __index = function() return {
     GetGroupList = function() return { { name = 'bloods', label = 'Bloods', grades = { { level = 10, label = 'Recrue' }, { level = 100, label = 'OG' } } },
         { name = 'ballas', label = 'Ballas illégal', grades = {} } } end,
     GetPlayerGroup = function(_, src) return illegalMember[src] end,
-} end })
+} end, __call = function() end })
 -- Éditeur de map existant (simulé) : gangs Qbox et contrôle d'accès des coffres
 local qbxGang = { [6] = { 'ballas', 2 }, [7] = { 'ballas', 1 } }
 local baseList = { { name = 'ballas', label = 'Ballas', grades = { { level = 0, label = 'Recrue' } } } }

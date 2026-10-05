@@ -357,7 +357,7 @@
     /* =========================================================
        ILLEGAL › GROUPES (progression) et ILLEGAL › MISSIONS
        ========================================================= */
-    const MS = { top: 'groups', mission: null, sec: 'general', drafts: {}, dirty: {}, levels: null };
+    const MS = { top: 'groups', mission: null, sec: 'general', drafts: {}, dirty: {}, levels: null, open: {}, pendingPos: null, lastPosT: null };
     const MSECS = [
         { id: 'general', label: 'Général' }, { id: 'groups', label: 'Groupes autorisés' }, { id: 'progression', label: 'Progression' },
         { id: 'locations', label: 'Emplacements' }, { id: 'guards', label: 'Gardes' }, { id: 'weapons', label: 'Armes' },
@@ -477,7 +477,10 @@
             ${fld('Description', `<textarea class="input" data-mf="general.description">${esc(d.description)}</textarea>`)}
             ${grid('1fr 1fr 1fr 1fr', fld('Niveau requis', inp('general.levelRequired', d.levelRequired, 'number')) + fld('XP gagnée', inp('general.xp', d.xp, 'number'))
                 + fld('Joueurs minimum', inp('general.minPlayers', d.minPlayers, 'number')) + fld('Joueurs maximum', inp('general.maxPlayers', d.maxPlayers, 'number')))}
-            <p class="hint">Les cooldowns se règlent dans l'onglet <b>Cooldown</b>, la durée dans <b>Timer</b>.</p>
+            ${grid('1fr 1fr', fld('XP maximum (0 = XP fixe ; sinon tirée entre XP et XP max)', inp('general.xpMax', d.xpMax || 0, 'number'))
+                + fld('Difficulté (santé, armure, précision et nombre des ennemis)', sel2('general.difficulty', d.difficulty || 'normal',
+                    [{ value: 'easy', label: 'Facile' }, { value: 'normal', label: 'Normale' }, { value: 'hard', label: 'Difficile' }, { value: 'extreme', label: 'Extrême' }])))}
+            <p class="hint">Les cooldowns se règlent dans l'onglet <b>Cooldown</b>, la durée dans <b>Timer</b>, les récompenses dans <b>Récompenses</b>${mcfg().bonus ? ' et <b>Bonus</b>' : ''}.</p>
             ${saveRow('general')}</div>`;
     };
     MSEC.groups = () => {
@@ -643,19 +646,124 @@
         </div>`;
     };
 
+    MSEC.hud = () => {
+        const d = draft('hud');
+        const tog = (k, label) => chk(`hud.${k}`, d[k], label);
+        return `<div class="section"><h2>HUD de mission</h2>
+            <p class="hint">Petit panneau discret qui garde à l'écran l'objectif et toutes les informations importantes (codes, plaques, mots de passe,
+                indices, alerte, temps). Une notification n'est jamais le seul endroit où se trouve une information indispensable.</p>
+            ${grid('1fr 1fr 1fr 1fr', fld('Activé', sel2('hud.enabled', String(d.enabled), [{ value: 'true', label: 'Oui' }, { value: 'false', label: 'Non' }]))
+                + fld('Position', sel2('hud.position', d.position, [{ value: 'top-right', label: 'Haut droite' }, { value: 'top-left', label: 'Haut gauche' },
+                    { value: 'right', label: 'Milieu droite' }, { value: 'left', label: 'Milieu gauche' }, { value: 'bottom-right', label: 'Bas droite' }, { value: 'bottom-left', label: 'Bas gauche' }]))
+                + fld('Taille (0.6 à 1.6)', inp('hud.scale', d.scale, 'number', 'step="0.05"')) + fld('Opacité (0.3 à 1)', inp('hud.opacity', d.opacity, 'number', 'step="0.05"')))}
+            <h2 style="font-size:16px">Catégories affichées</h2>
+            <div class="perm-grid" style="margin-bottom:12px">${tog('showTimer', 'Timer')}${tog('showObjective', 'Objectif')}${tog('showClues', 'Indices')}
+                ${tog('showCodes', 'Codes et mots de passe')}${tog('showInfo', 'Informations importantes')}${tog('showAlert', 'Niveau d\'alerte')}</div>
+            ${grid('1fr 1fr 1fr', fld('Informations', sel2('hud.persistent', String(d.persistent), [{ value: 'true', label: 'Persistantes (jusqu\'à la fin de l\'étape)' }, { value: 'false', label: 'Temporaires' }]))
+                + fld('Durée d\'une information temporaire (s)', inp('hud.tempSeconds', d.tempSeconds, 'number'))
+                + fld('Information utilisée', sel2('hud.usedMode', d.usedMode, [{ value: 'mark', label: 'Reste affichée (« utilisé »)' }, { value: 'remove', label: 'Disparaît' }])))}
+            <div class="perm-grid">${tog('share', 'Partager automatiquement les informations importantes avec tous les participants')}</div>
+            <p class="hint" style="margin-top:8px">Les informations marquées « Important » (codes, plaques…) restent affichées même en mode temporaire.</p>
+            ${saveRow('hud')}</div>`;
+    };
+
+    // ---------- Formulaires générés depuis le schéma du type de mission ----------
+    const schemaDefault = (f) => {
+        if (f.t === 'object') { const o = {}; arr(f.fields).forEach((x) => { o[x.key] = schemaDefault(x); }); return o; }
+        if (f.t === 'list') return [];
+        if (f.t === 'point') return { x: 0, y: 0, z: 0, h: 0 };
+        return f.def !== undefined ? clone(f.def) : (f.t === 'bool' ? false : f.t === 'int' || f.t === 'num' ? 0 : '');
+    };
+    const getPath = (obj, path) => path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
+    const posFmt = (p) => (p && (p.x || p.y) ? `${Number(p.x).toFixed(1)}, ${Number(p.y).toFixed(1)}, ${Number(p.z).toFixed(1)}` : 'non définie');
+    function renderField(f, path, v) {
+        const t = f.t;
+        if (t === 'object') {
+            return `<div class="card" style="max-width:1000px"><div class="card-head"><strong>${esc(f.label || '')}</strong></div>
+                ${arr(f.fields).map((x) => renderField(x, `${path}.${x.key}`, v ? v[x.key] : undefined)).join('')}</div>`;
+        }
+        if (t === 'list') {
+            const items = arr(v);
+            return `<div class="field"><label>${esc(f.label)} (${items.length}${f.max ? ` / ${f.max}` : ''})</label>
+                ${items.map((it, i) => {
+                    const p = `${path}.${i}`;
+                    const title = it.label || it.key || (it.pos ? `Position ${i + 1}` : `${f.label} ${i + 1}`);
+                    const open = MS.open[p];
+                    return `<details class="adv" ${open ? 'open' : ''} style="margin:6px 0"><summary data-mx="toggle" data-path="${p}">
+                        <b>${i + 1}. ${esc(title)}</b>${it.pos ? ` <span class="muted">· ${posFmt(it.pos)}</span>` : ''}${it.enabled === false ? ' <span class="badge muted">Désactivé</span>' : ''}</summary>
+                        ${open ? arr(f.fields).map((x) => renderField(x, `${p}.${x.key}`, it[x.key])).join('') : ''}
+                        <div class="btn-row" style="margin-top:6px"><button class="btn" data-mx="listMove" data-path="${path}" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
+                            <button class="btn" data-mx="listMove" data-path="${path}" data-i="${i}" data-dir="1" ${i === items.length - 1 ? 'disabled' : ''}>↓</button>
+                            <button class="btn" data-mx="listDup" data-path="${path}" data-i="${i}">Dupliquer</button>
+                            <button class="btn danger" data-mx="listDel" data-path="${path}" data-i="${i}">Supprimer</button></div>
+                    </details>`;
+                }).join('')}
+                <button class="btn" data-mx="listAdd" data-path="${path}" ${f.max && items.length >= f.max ? 'disabled' : ''}>+ Ajouter</button></div>`;
+        }
+        if (t === 'point') {
+            const p = v || { x: 0, y: 0, z: 0, h: 0 };
+            return `<div class="field"><label>${esc(f.label)}</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto auto;gap:8px;max-width:1000px;align-items:center">
+                    ${['x', 'y', 'z', 'h'].map((k) => `<input class="input" type="number" step="0.01" data-mf="${path}.${k}" value="${Number(p[k] || 0).toFixed(k === 'h' ? 1 : 2)}" title="${k === 'h' ? 'Heading' : k.toUpperCase()}" placeholder="${k === 'h' ? 'Heading' : k.toUpperCase()}">`).join('')}
+                    <button class="btn primary" data-mx="mypos" data-path="${path}">📍 Définir à ma position</button>
+                    <button class="btn" data-mx="tpos" data-path="${path}">Y aller</button></div></div>`;
+        }
+        if (t === 'bool') return `<div class="perm-grid" style="margin-bottom:8px">${chk(path, v === true, f.label)}</div>`;
+        if (t === 'select') {
+            const num = arr(f.options).some((o) => typeof o.value === 'number');
+            return fld(f.label, `<select class="input" data-mf="${path}" ${num ? 'data-num="1"' : ''}>${arr(f.options).map((o) => `<option value="${esc(o.value)}" ${String(o.value) === String(v) ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`);
+        }
+        if (t === 'textarea') return fld(f.label, `<textarea class="input" data-mf="${path}">${esc(v ?? '')}</textarea>`);
+        if (t === 'int' || t === 'num') return fld(f.label, inp(path, v ?? 0, 'number', `${t === 'num' ? 'step="0.1"' : ''} min="${f.min ?? ''}" max="${f.max ?? ''}"`));
+        return fld(f.label, inp(path, v ?? ''));
+    }
+    const typeDef = () => { const c = mcfg(); const m = mdata(); return c && m.types ? m.types[c.type] : null; };
+    function schemaSection(sec) {
+        const td = typeDef();
+        const f = td && td.schema && td.schema[sec];
+        if (!f) return '<div class="empty">Section inconnue.</div>';
+        const d = draft(sec);
+        return `<div class="section"><h2>${esc(f.label)}</h2>
+            ${arr(f.fields).map((x) => renderField(x, `${sec}.${x.key}`, d[x.key])).join('')}
+            ${saveRow(sec)}</div>`;
+    }
+    const SEC_LABEL = { general: 'Général', groups: 'Groupes autorisés', progression: 'Progression', hud: 'HUD', timer: 'Timer', rewards: 'Récompenses',
+        phone: 'Téléphone', cooldown: 'Cooldown', weapons: 'Armes', security: 'Sécurité', locations: 'Emplacements', guards: 'Gardes', crate: 'Colis', delivery: 'Livraison' };
+    const sectionsOf = () => {
+        const td = typeDef();
+        if (td && td.sections) return arr(td.sections).map((id) => ({ id, label: (td.schema && td.schema[id] && td.schema[id].label) || SEC_LABEL[id] || id }));
+        return MSECS.concat([{ id: 'hud', label: 'HUD' }]);
+    };
+    const isSchema = (id) => { const td = typeDef(); return !!(td && td.schema && td.schema[id]); };
+
+    // « Définir à ma position » : le serveur renvoie la position et le heading de l'admin
+    const applyMyPos = () => {
+        const m = mdata();
+        if (!MS.pendingPos || !m || !m.myPos || m.myPos.t === MS.lastPosT) return;
+        MS.lastPosT = m.myPos.t;
+        const path = MS.pendingPos;
+        MS.pendingPos = null;
+        const sec = path.split('.')[0];
+        draft(sec);
+        MS.dirty[sec] = true;
+        setPath(MS.drafts, path, { x: m.myPos.x, y: m.myPos.y, z: m.myPos.z, h: m.myPos.h });
+        toast('Position copiée : pense à « Enregistrer ».', 'success');
+    };
+
     function missionPage() {
         const c = mcfg();
         if (!c) { MS.mission = null; return missionsHome(); }
         return `<div class="btn-row" style="margin-bottom:12px;align-items:center"><button class="btn" data-mx="close">← Toutes les missions</button>
                 <span style="font-family:var(--display);font-size:22px;font-weight:700">${esc(c.general.label)}</span>
                 <span class="badge">${esc(c.typeLabel)}</span>${c.general.enabled ? '' : '<span class="badge muted">Désactivée</span>'}</div>
-            <div class="segmented">${MSECS.map((s) => `<button class="seg ${s.id === MS.sec ? 'active' : ''}" data-msec="${s.id}">${s.label}</button>`).join('')}</div>
-            ${(MSEC[MS.sec] || MSEC.general)()}`;
+            <div class="segmented">${sectionsOf().map((s) => `<button class="seg ${s.id === MS.sec ? 'active' : ''}" data-msec="${s.id}">${s.label}</button>`).join('')}</div>
+            ${isSchema(MS.sec) ? schemaSection(MS.sec) : (MSEC[MS.sec] || MSEC.general)()}`;
     }
 
     const missionsView = () => {
         const m = mdata();
         if (m) mnorm(m);
+        if (MS.mission) applyMyPos();
         return MS.mission ? missionPage() : missionsHome();
     };
 
@@ -676,6 +784,7 @@
             let v = t.type === 'checkbox' ? t.checked : t.value;
             if (t.type === 'number') v = Number(v);
             if (t.tagName === 'SELECT' && (v === 'true' || v === 'false')) v = v === 'true';
+            if (t.tagName === 'SELECT' && t.dataset.num) v = Number(v);
             setPath(MS.drafts, path, v);
         }
         if (t.dataset.mg !== undefined) {
@@ -719,6 +828,37 @@
                 return msend('missionSave', { missionId: mid, section: s, data });
             }
             case 'reset': MS.dirty[sec] = false; MS.drafts[sec] = null; return render();
+            // Listes et positions des formulaires générés
+            case 'toggle': ev.preventDefault(); MS.open[n.dataset.path] = !MS.open[n.dataset.path]; return render();
+            case 'listAdd': case 'listDel': case 'listMove': case 'listDup': {
+                const path = n.dataset.path, s2 = path.split('.')[0];
+                draft(s2);
+                MS.dirty[s2] = true;
+                let list = getPath(MS.drafts, path);
+                if (!Array.isArray(list)) { list = arr(list); setPath(MS.drafts, path, list); }   // liste vide reçue en {}
+                if (a === 'listAdd') {
+                    // Définition de la liste : retrouvée dans le schéma en suivant le chemin
+                    const td = typeDef();
+                    let f = td.schema[s2];
+                    path.split('.').slice(1).forEach((k) => { if (!/^\d+$/.test(k)) f = arr(f.fields).find((x) => x.key === k); });
+                    const item = {};
+                    arr(f.fields).forEach((x) => { item[x.key] = schemaDefault(x); });
+                    list.push(item);
+                    MS.open[`${path}.${list.length - 1}`] = true;
+                } else if (a === 'listDel') {
+                    if (!(await confirmBox('Supprimer cet élément ?', 'Il sera retiré après « Enregistrer ».'))) return;
+                    list.splice(i, 1);
+                } else if (a === 'listDup') { list.splice(i + 1, 0, clone(list[i])); }
+                else { const j = i + Number(n.dataset.dir); [list[i], list[j]] = [list[j], list[i]]; }
+                return render();
+            }
+            case 'mypos': MS.pendingPos = n.dataset.path; return msend('missionMyPos', {});
+            case 'tpos': {
+                const p = getPath(MS.drafts[n.dataset.path.split('.')[0]] ? MS.drafts : { [n.dataset.path.split('.')[0]]: mcfg()[n.dataset.path.split('.')[0]] }, n.dataset.path);
+                if (!p || (!p.x && !p.y)) return toast('Position non définie.', 'error');
+                post('close');
+                return msend('missionTpPos', { x: p.x, y: p.y, z: p.z, h: p.h });
+            }
             case 'preset': draft(n.dataset.path.split('.')[0]); MS.dirty[n.dataset.path.split('.')[0]] = true; setPath(MS.drafts, n.dataset.path, Number(n.dataset.v)); return render();
             case 'gmode': { const d = draft('groups'); d.mode = n.dataset.v; MS.dirty.groups = true; return render(); }
             case 'guardAdd': {

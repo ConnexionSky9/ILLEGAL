@@ -8,6 +8,11 @@ local Loaded = {}   -- [src] = citizenid (pour la dernière connexion à la déc
 local REQUIRED = { 'DB', 'Log', 'Players', 'Cache', 'Sync', 'Groups', 'Grades', 'Members', 'Finances', 'Peds', 'Orders',
     'Deliveries', 'Stashes', 'Missions', 'Tablet' }
 local FILES = { Deliveries = 'server/deliveries.lua', Stashes = 'server/stashes.lua', Missions = 'server/missions/core.lua', Tablet = 'server/tablet.lua' }
+-- Missions (types) : fichiers attendus
+CreateThread(function()
+    Wait(0)
+    if Missions and not Missions.types.fourgon then print('^1[ILLEGAL] Fichier non chargé : server/missions/fourgon.lua (refresh puis ensure elyzea_illegal)^7') end
+end)
 local missing = {}
 for _, name in ipairs(REQUIRED) do if _G[name] == nil then missing[#missing + 1] = FILES[name] or name end end
 if #missing > 0 then

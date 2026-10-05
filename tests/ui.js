@@ -70,7 +70,7 @@ const target = (attr, data) => ({ dataset: data, disabled: false, closest: (sel)
     setData({ available: false, resource: 'elyzea_illegal' });
     check(vm.runInContext('VIEWS.illegal()', ctx).includes('ensure elyzea_illegal'), 'message si la ressource n\'est pas démarrée');
 
-    const click = (attr, data) => docListeners.click.forEach((fn) => fn({ target: target(attr, data) }));
+    const click = (attr, data) => docListeners.click.forEach((fn) => fn({ target: target(attr, data), preventDefault() {} }));
     for (const fx of ['admin_bloods', 'admin_vagos']) {
         setData(load(fx));
         vm.runInContext('render()', ctx);
@@ -98,6 +98,41 @@ const target = (attr, data) => ({ dataset: data, disabled: false, closest: (sel)
     click('data-mx', { mx: 'save', sec: 'timer' });
     const ms = ctx.sent[ctx.sent.length - 1];
     check(ms.data.name === 'missionSave' && ms.data.data.section === 'timer' && ms.data.data.data.minutes === 20, 'timer : enregistrement envoyé (20 min)');
+    click('data-mx', { mx: 'close' });
+    // « Le Fourgon Fantôme » : toutes les sections générées depuis le schéma du serveur
+    const fdata = load('admin_list');
+    const ftype = fdata.missions.types.fourgon;
+    check(ftype && ftype.sections.length >= 20, 'fourgon : sections envoyées par le serveur');
+    mh = vm.runInContext('__html', ctx);
+    check(mh.includes('Le Fourgon Fantôme'), 'missions : « Le Fourgon Fantôme » listée');
+    click('data-mx', { mx: 'open', mid: 'fourgon_fantome' });
+    for (const sec of ftype.sections) {
+        click('data-msec', { msec: sec });
+        clean(vm.runInContext('__html', ctx), `Fourgon › ${sec}`);
+    }
+    click('data-msec', { msec: 'locations' });
+    click('data-mx', { mx: 'toggle', path: 'locations.list.0' });
+    let fh = vm.runInContext('__html', ctx);
+    check(fh.includes('Définir à ma position') && fh.includes('data-mx="tpos"') && fh.includes('Carrière de Davis Quartz'), 'emplacements : X/Y/Z/H + « Définir à ma position »');
+    check(!/mode placement/i.test(fh), 'aucun mode placement');
+    click('data-mx', { mx: 'mypos', path: 'locations.list.0.van' });
+    check(ctx.sent[ctx.sent.length - 1].data.name === 'missionMyPos', '« Définir à ma position » → action serveur missionMyPos');
+    fdata.missions.myPos = { x: 11.5, y: 22.25, z: 33, h: 90, t: 12345 };
+    setData(fdata);
+    vm.runInContext('render()', ctx);
+    click('data-mx', { mx: 'save', sec: 'locations' });
+    const fs1 = ctx.sent[ctx.sent.length - 1];
+    check(fs1.data.name === 'missionSave' && fs1.data.data.missionId === 'fourgon_fantome' && fs1.data.data.data.list[0].van.x === 11.5
+        && fs1.data.data.data.list[0].van.h === 90, 'position du staff appliquée puis enregistrée');
+    click('data-msec', { msec: 'scenarios' });
+    fh = vm.runInContext('__html', ctx);
+    for (const s2 of ['Fourgon abandonné', 'Accident', 'Fourgon surveillé', 'Faux fourgon', 'Fourgon déplacé']) check(fh.includes(s2), `scénario « ${s2} »`);
+    click('data-mx', { mx: 'listAdd', path: 'scenarios.list' });
+    click('data-mx', { mx: 'save', sec: 'scenarios' });
+    const fs2 = ctx.sent[ctx.sent.length - 1];
+    check(fs2.data.data.section === 'scenarios' && fs2.data.data.data.list.length === 6, 'scénario ajouté (6) et envoyé');
+    click('data-msec', { msec: 'hud' });
+    clean(vm.runInContext('__html', ctx), 'Fourgon › HUD');
     click('data-mx', { mx: 'close' });
     click('data-mt', { mt: 'groups' });
     const gh = vm.runInContext('__html', ctx);
@@ -174,7 +209,7 @@ for (const fx of ['tablet_og', 'tablet_lieutenant', 'tablet_recrue_vagos']) {
     const els = {};
     const winListeners = {};
     const ctx = {
-        console, JSON, Object, Array, Number, String, Date, Math, Promise, Set, setInterval: () => 0, setTimeout: () => 0,
+        console, JSON, Object, Array, Number, String, Date, Math, Promise, Set, setInterval: () => 0, setTimeout: () => 0, clearInterval: () => {}, clearTimeout: () => {},
         fetch: () => Promise.resolve({ json: () => ({}) }),
         window: { addEventListener: (t, fn) => { (winListeners[t] = winListeners[t] || []).push(fn); } },
         document: { querySelector: (s) => (els[s] = els[s] || el()), addEventListener: () => {}, documentElement: { style: { setProperty() {} } },
@@ -201,6 +236,24 @@ for (const fx of ['tablet_og', 'tablet_lieutenant', 'tablet_recrue_vagos']) {
     check(added && added.className === 'toast success' && added.textContent === 'Commande récupérée', 'notification au format du MenuStaff');
     send({ action: 'f5', data: { label: 'Bloods', grade: 'OG', color: '#aa0000' } });
     check(els['#quick'].innerHTML.includes('q-panel') && els['#quick'].innerHTML.includes('Bloods') && els['#quick'].innerHTML.includes('data-f5="open"'), 'menu F5 : panneau du menu rapide avec le groupe');
+    // HUD de mission (fourgon) : discret, informations persistantes, « utilisé », alerte
+    send({ action: 'missionHud', show: true, label: 'Le Fourgon Fantôme', objective: 'Trouver des indices', remaining: 1500, alert: 2,
+        cfg: { enabled: true, position: 'top-left', scale: 0.9, opacity: 0.8, showTimer: true, showCodes: true },
+        info: [{ key: 'objective', label: 'Objectif', value: 'Trouver la vraie marchandise', cat: 'objective', order: 1 },
+            { key: 'alert', label: 'Alerte', value: '2 — Alerte 2', cat: 'alert', order: 2 },
+            { key: 'clue1', label: 'Plaque du fourgon', value: 'AB-472-CD', cat: 'plate', order: 11 },
+            { key: 'code', label: 'Code caisse', value: '4729', cat: 'code', used: true, order: 13 },
+            { key: 'tmp', label: 'Témoin', value: 'expiré', cat: 'info', remaining: 0, order: 20 }] });
+    const hud = els['#missionhud'];
+    check(hud.className.includes('compact') && hud.className.includes('pos-top-left'), 'HUD : compact, position configurable');
+    check(hud.innerHTML.includes('Trouver la vraie marchandise') && hud.innerHTML.includes('AB-472-CD') && hud.innerHTML.includes('25:00'), 'HUD : objectif, plaque, timer');
+    check(hud.innerHTML.includes('4729') && hud.innerHTML.includes('utilisé'), 'HUD : code conservé, marqué « utilisé »');
+    check(hud.innerHTML.includes('alert a2') && !hud.innerHTML.includes('expiré'), 'HUD : niveau d\'alerte, information temporaire expirée retirée');
+    clean(hud.innerHTML, 'HUD de mission');
+    send({ action: 'missionHud', show: true, label: 'X', remaining: 60, cfg: { showCodes: false }, info: [{ key: 'code', label: 'Code', value: '9999', cat: 'code' }] });
+    check(!hud.innerHTML.includes('9999'), 'HUD : catégorie masquable (codes)');
+    send({ action: 'codeInput', crate: 3 });
+    check(els['#modal-root'].innerHTML.includes('Caisse n°3') && els['#modal-root'].innerHTML.includes('data-cm="force"'), 'saisie du code : Valider / Forcer / Annuler');
 }
 
 console.log(`\n${passed} réussis, ${failed} échoués`);

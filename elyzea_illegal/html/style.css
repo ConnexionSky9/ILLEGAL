@@ -415,3 +415,31 @@ input[type=color].input { padding: 3px; height: 38px; }
 .mbar i { display: block; height: 100%; background: linear-gradient(90deg, #9c7a3c, var(--signal), var(--gold-hi)); }
 .mcard.locked { opacity: .75; }
 .mcard .lock { color: var(--danger); font-family: var(--display); font-weight: 700; letter-spacing: .06em; }
+
+/* ---------- HUD de mission compact (coin de l'écran, configurable) ---------- */
+#missionhud.compact { position: fixed; z-index: 74; pointer-events: none; text-align: left; min-width: 0; width: 250px; padding: 9px 12px 8px;
+    transform: scale(var(--hud-scale, 1)); opacity: var(--hud-alpha, .92); background: rgba(10, 15, 27, .9); border: 1px solid rgba(217, 181, 106, .45);
+    border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.45); font-size: 12.5px; animation: none; left: auto; top: auto; }
+#missionhud.pos-top-right { top: 18px; right: 18px; transform-origin: top right; }
+#missionhud.pos-top-left { top: 18px; left: 18px; transform-origin: top left; }
+#missionhud.pos-bottom-right { bottom: 22vh; right: 18px; transform-origin: bottom right; }
+#missionhud.pos-bottom-left { bottom: 26vh; left: 18px; transform-origin: bottom left; }
+#missionhud.pos-right { top: 32vh; right: 18px; transform-origin: right center; }
+#missionhud.pos-left { top: 32vh; left: 18px; transform-origin: left center; }
+#missionhud .mh-head { font: 700 12px var(--brand); letter-spacing: .12em; color: var(--gold-hi); text-align: center; padding-bottom: 6px; margin-bottom: 4px;
+    border-bottom: 1px solid rgba(217, 181, 106, .25); }
+#missionhud .mh-head small { display: block; font: 600 12px var(--display); letter-spacing: .03em; color: var(--muted); margin-top: 1px; }
+#missionhud .mh-sec { padding: 4px 0 5px; }
+#missionhud .mh-sec span, #missionhud .mh-row span { display: block; font: 600 10.5px var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+#missionhud .mh-sec b { font: 600 14px var(--display); color: var(--text); line-height: 1.2; }
+#missionhud .mh-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 3px 0; border-top: 1px solid rgba(42, 55, 84, .5); }
+#missionhud .mh-row span { display: inline; }
+#missionhud .mh-row b { font: 700 14px var(--display); color: var(--text); text-align: right; }
+#missionhud .mh-row.imp b { color: var(--gold-hi); letter-spacing: .06em; font-size: 15px; }
+#missionhud .mh-row.used b { color: var(--muted); text-decoration: line-through; }
+#missionhud .mh-row.used b i { text-decoration: none; font: 500 10px var(--body); margin-left: 4px; }
+#missionhud .mh-row.alert b { color: var(--signal); }
+#missionhud .mh-row.alert.a2 b { color: #ff9b5a; }
+#missionhud .mh-row.alert.a3 b { color: var(--danger); }
+#missionhud .mh-row.time b { font-variant-numeric: tabular-nums; }
+#missionhud .mh-row.time.low b { color: var(--danger); }

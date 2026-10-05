@@ -16,14 +16,12 @@ function M.action(name, a, b)
     if M.run then TriggerServerEvent('illegal:mission:action', M.run.runId, name, a, b) end
 end
 
+-- HUD de mission : objectif, informations importantes (codes, plaques…), alerte, timer.
+-- Réglages (position, taille, transparence, catégories) envoyés par le serveur avec la mission.
 local function hud(p)
     if not p then return SendNUIMessage({ action = 'missionHud', show = false }) end
-    local obj
-    if p.stage == 'guards' then obj = ('Gardes debout : %d / %d'):format(p.alive or 0, p.total or 0)
-    elseif p.stage == 'deliver' then obj = p.carrier and ('Livre le colis : %s'):format(p.delivery and p.delivery.label or '') or ('%s porte le colis'):format(p.carrierName or '?')
-    else obj = p.keyFinder and ('Clé trouvée par %s'):format(p.keyFinder) or '' end
-    SendNUIMessage({ action = 'missionHud', show = true, label = p.label, stage = p.stageLabel or '', info = obj, remaining = p.remaining,
-        participants = p.participants })
+    SendNUIMessage({ action = 'missionHud', show = true, label = p.label, objective = p.objective or p.stageLabel or '', lines = p.lines or {},
+        info = p.info or {}, alert = p.alert or 0, remaining = p.remaining, cfg = p.hud or {} })
 end
 
 RegisterNetEvent('illegal:client:mission', function(p)
@@ -53,11 +51,36 @@ RegisterNetEvent('illegal:client:missionEnd', function(d)
 end)
 
 -- Le serveur autorise une action longue : barre de progression puis confirmation
-RegisterNetEvent('illegal:client:missionProgress', function(runId, kind, seconds)
+RegisterNetEvent('illegal:client:missionProgress', function(runId, kind, seconds, extra)
     local run = M.run
     if not run or run.runId ~= runId then return end
     local def = M.types[run.type]
-    if def and def.progress then def.progress(kind, seconds) end
+    if def and def.progress then def.progress(kind, seconds, extra) end
+end)
+
+-- ---------------------------------------------------------
+--  Alerte police (envoyée uniquement aux policiers en service par le serveur)
+--  Position approximative : zone + icône, durée réglée par niveau d'alerte.
+-- ---------------------------------------------------------
+RegisterNetEvent('illegal:client:policeAlert', function(a)
+    if type(a) ~= 'table' then return end
+    Notify(('🚨 %s : %s'):format(a.title or 'Alerte', a.message or ''), 'warning')
+    PlaySoundFrontend(-1, 'Lose_1st', 'GTAO_FM_Events_Soundset', true)
+    local area = AddBlipForRadius(a.x, a.y, a.z, (a.radius or 300) + 0.0)
+    SetBlipColour(area, a.color or 1)
+    SetBlipAlpha(area, 100)
+    local b = AddBlipForCoord(a.x, a.y, a.z)
+    SetBlipSprite(b, a.sprite or 161)
+    SetBlipColour(b, a.color or 1)
+    SetBlipScale(b, 1.1)
+    SetBlipFlashes(b, true)
+    BeginTextCommandSetBlipName('STRING')
+    AddTextComponentSubstringPlayerName(a.title or 'Alerte')
+    EndTextCommandSetBlipName(b)
+    SetTimeout((a.seconds or 120) * 1000, function()
+        if DoesBlipExist(b) then RemoveBlip(b) end
+        if DoesBlipExist(area) then RemoveBlip(area) end
+    end)
 end)
 
 -- Ressource redémarrée côté client : on redemande l'état
@@ -100,6 +123,15 @@ end
 --  Interaction ALT (sans ox_target) : maintenir ALT, puis E
 --  Retourne true quand le joueur valide. À appeler chaque image.
 -- ---------------------------------------------------------
+-- Interaction : avec ox_target installé (qui utilise déjà ALT), simple E ; sinon ALT + E
+function M.interact(owner, verb, name)
+    if M.useTarget() then
+        Prompt.show(owner, verb, name, 'E')
+        return IsControlJustPressed(0, 38)
+    end
+    return M.alt(owner, verb, name)
+end
+
 function M.alt(owner, verb, name)
     if IsControlPressed(0, 19) then
         Prompt.show(owner, verb, name, 'ALT + E')
@@ -166,6 +198,7 @@ local function configure(ped, st)
     SetPedRelationshipGroupHash(ped, relationship())
     SetPedCombatAbility(ped, 1)
     SetPedCombatMovement(ped, st.behavior == 'very_aggressive' and 3 or 2)
+    SetPedCombatAttributes(ped, 0, st.cover ~= false)   -- se met à couvert
     SetPedCombatAttributes(ped, 5, true)     -- se bat même désarmé
     SetPedCombatAttributes(ped, 46, true)    -- jusqu'au bout
     SetPedFleeAttributes(ped, 0, false)
@@ -227,9 +260,15 @@ local function behave(ped, g)
         elseif not target or d > st.detect then return end
     end
     if not target then return end
-    local engage = g.provoked
-        or (st.behavior == 'wary' and d <= st.attack)
-        or ((st.behavior == 'aggressive' or st.behavior == 'very_aggressive') and d <= st.detect)
+    -- Déclenchement : distance, ligne de vue, ou évènement (alarme, ouverture du fourgon / d'une caisse)
+    local trig = st.trigger or 'distance'
+    local alerted = Entity(ped).state.illegalAlerted == true
+    local canSee = trig ~= 'los' or HasEntityClearLosToEntity(ped, target, 17)
+    local armed = trig == 'distance' or trig == 'los' or alerted
+    local engage = g.provoked or (alerted and d <= math.max(st.detect, 60.0))
+        or (armed and canSee and st.behavior == 'wary' and d <= st.attack)
+        or (armed and canSee and (st.behavior == 'aggressive' or st.behavior == 'very_aggressive') and d <= st.detect)
+    if alerted and not st.returnHome then limit = math.max(limit, 500.0) end
     if engage and targetFromHome <= limit + 5.0 then
         g.mode = 'combat'
         SetBlockingOfNonTemporaryEvents(ped, false)
@@ -241,6 +280,34 @@ local function behave(ped, g)
         g.mode = 'idle'
         TaskStartScenarioInPlace(ped, 'WORLD_HUMAN_GUARD_STAND', 0, true)
     end
+end
+
+-- Fourgon de mission : moteur, dégâts (accident), portes, appliqués par le propriétaire réseau
+local Vans = {}
+AddStateBagChangeHandler('illegalVan', nil, function() anyGuard = true end)
+local function vanTick()
+    for _, veh in ipairs(GetGamePool('CVehicle')) do
+        local st = Entity(veh).state.illegalVan
+        if st and NetworkHasControlOfEntity(veh) then
+            if not Vans[veh] then
+                Vans[veh] = true
+                SetVehicleOnGroundProperly(veh)
+                if st.engineOff then SetVehicleEngineOn(veh, false, true, true) end
+                if st.damaged then
+                    SetVehicleBodyHealth(veh, (st.body or 300) + 0.0)
+                    SetVehicleEngineHealth(veh, (st.engine or 200) + 0.0)
+                    SmashVehicleWindow(veh, 0) SmashVehicleWindow(veh, 1)
+                    SetVehicleDoorBroken(veh, 4, true)
+                    SetVehicleDamage(veh, 0.0, 1.5, 0.3, 400.0, 150.0, true)
+                end
+                if st.doorsOpen then SetVehicleDoorOpen(veh, 2, false, false) SetVehicleDoorOpen(veh, 3, false, false) end
+            end
+            if Entity(veh).state.illegalVanOpen and GetVehicleDoorAngleRatio(veh, 2) < 0.1 then
+                SetVehicleDoorOpen(veh, 2, false, false) SetVehicleDoorOpen(veh, 3, false, false)
+            end
+        end
+    end
+    for veh in pairs(Vans) do if not DoesEntityExist(veh) then Vans[veh] = nil end end
 end
 
 CreateThread(function()
@@ -264,7 +331,8 @@ CreateThread(function()
                 end
             end
             for ped in pairs(Guards) do if not DoesEntityExist(ped) then Guards[ped] = nil end end
-            if found then quiet = 0 else quiet = quiet + 1 if quiet > 10 then anyGuard = false end end
+            vanTick()
+            if found or next(Vans) then quiet = 0 else quiet = quiet + 1 if quiet > 10 then anyGuard = false end end
             Wait(500)
         else
             Wait(2000)

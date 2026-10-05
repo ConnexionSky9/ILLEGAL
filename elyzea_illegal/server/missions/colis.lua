@@ -374,6 +374,11 @@ local function payload(run, src, base)
     base.keyFinder = s.keyFinder
     base.keyLabel = c.keyLabel
     base.location = { x = s.loc.x, y = s.loc.y, z = s.loc.z, radius = s.loc.radius or 30, label = s.loc.label }
+    -- HUD de mission
+    base.objective = run.stageLabel
+    base.lines = {}
+    if s.stage == 'guards' then base.lines[#base.lines + 1] = { label = 'Gardes debout', value = ('%d / %d'):format(s.alive or 0, #s.guards), cat = 'clues' } end
+    if s.hasKey and s.stage ~= 'deliver' then base.lines[#base.lines + 1] = { label = c.keyLabel, value = ('trouvée par %s'):format(s.keyFinder or '?'), cat = 'code' } end
     base.crate = { model = c.model, openSeconds = c.openSeconds, animDict = c.animDict, animName = c.animName, requireAllDead = c.requireAllDead }
     if s.stage == 'deliver' and s.delivery then
         local p = s.delivery
@@ -382,6 +387,8 @@ local function payload(run, src, base)
             seconds = run.cfg.delivery.deliverSeconds }
         base.carrier = s.carrier == run.participants[src]
         for s2, cid in pairs(run.participants) do if cid == s.carrier then base.carrierName = run.names[s2] end end
+        base.lines[#base.lines + 1] = { label = 'Destination', value = p.label, cat = 'info' }
+        base.lines[#base.lines + 1] = { label = 'Colis', value = base.carrier and 'tu le portes' or ('porté par %s'):format(base.carrierName or '?'), cat = 'info' }
     end
 end
 

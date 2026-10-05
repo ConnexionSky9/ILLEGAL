@@ -23,6 +23,7 @@ client_scripts {
     'client/stashes.lua',
     'client/missions/core.lua',
     'client/missions/colis.lua',
+    'client/missions/fourgon.lua',
 }
 
 server_scripts {
@@ -42,6 +43,7 @@ server_scripts {
     'server/stashes.lua',
     'server/missions/core.lua',
     'server/missions/colis.lua',
+    'server/missions/fourgon.lua',
     'server/tablet.lua',
     'server/admin.lua',
     'server/main.lua',

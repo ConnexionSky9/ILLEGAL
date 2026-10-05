@@ -106,3 +106,17 @@ if StashAccess then
         return false
     end
 end
+
+-- ---------------------------------------------------------
+--  Police en service (système existant du menu : Config.PoliceJobs + service)
+--  Utilisé par les missions illégales pour prévenir uniquement les policiers en service.
+-- ---------------------------------------------------------
+exports('GetOnDutyPolice', function()
+    local list = {}
+    if not (Bridge and Bridge.IsPolice) then return list end
+    for _, p in ipairs(GetPlayers()) do
+        local id = tonumber(p)
+        if Bridge.IsPolice(id) then list[#list + 1] = id end
+    end
+    return list
+end)
