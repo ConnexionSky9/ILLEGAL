@@ -18,7 +18,7 @@ local ACTION_PERM = {
     validateRequest = 'orders_validate', refuseRequest = 'orders_validate',
     saveSettings = 'settings',
     -- deposit / withdraw : permission selon le compte (clean_deposit, dirty_withdraw…)
-    -- cancelRequest / claimRequest / leave : seulement ses propres commandes / soi-même
+    -- cancelRequest / leave : seulement ses propres commandes / soi-même (le sac se ramasse sur place : deliveries.lua)
 }
 
 -- Contexte complet d'un joueur, recalculé à chaque appel
@@ -79,7 +79,9 @@ function Tablet.build(src)
         me = { name = ctx.name, grade = grade.label, gradeId = grade.id, level = grade.level, boss = grade.boss, perms = perms },
         members = members, grades = grades,
         permissions = Illegal.Permissions, categories = Config.OrderCategories,
-        config = { maxQuantity = Config.OrderMaxQuantity, maxAmount = Config.MaxAmount, cleanAccount = Config.CleanMoney.account },
+        config = { maxQuantity = Config.OrderMaxQuantity, maxAmount = Config.MaxAmount, cleanAccount = Config.CleanMoney.account,
+            canCreateOrders = Config.Orders.playerCanCreate, requireValidation = Config.Orders.requireValidation,
+            prepareMinutes = Config.Delivery.prepareMinutes, now = os.time() },
     }
 
     if perms.finance_view then
@@ -91,7 +93,7 @@ function Tablet.build(src)
         if o.available or perms.orders_manage then
             orders[#orders + 1] = { id = o.id, name = o.name, description = o.description, category = o.category, price = o.price,
                 payment = o.payment, available = o.available, global = o.groupId == nil, hasItem = o.item ~= nil,
-                editable = perms.orders_manage == true and o.groupId == g.id }
+                editable = Config.Orders.playerCanCreate and perms.orders_manage == true and o.groupId == g.id }
         end
     end
     data.orders = orders
@@ -101,7 +103,7 @@ function Tablet.build(src)
         if perms.orders_validate or r.requesterCid == ctx.cid then
             requests[#requests + 1] = { id = r.id, orderName = r.orderName, quantity = r.quantity, total = r.total, account = r.account,
                 status = r.status, requester = r.requester, handledBy = r.handledBy, created = r.created, hasItem = r.item ~= nil,
-                mine = r.requesterCid == ctx.cid }
+                mine = r.requesterCid == ctx.cid, readyAt = r.readyAt }
         end
     end
     data.requests = requests
@@ -173,7 +175,6 @@ local HANDLERS = {
     validateRequest = function(a, g, d) return Orders.validate(a, g, U.int(d.id, 1)) end,
     refuseRequest   = function(a, g, d) return Orders.refuse(a, g, U.int(d.id, 1)) end,
     cancelRequest   = function(a, g, d) return Orders.cancel(a, g, U.int(d.id, 1)) end,
-    claimRequest    = function(a, g, d) return Orders.claim(a, g, U.int(d.id, 1)) end,
 
     -- Le type et les onglets F5 restent réservés au staff
     saveSettings = function(a, g, d)

@@ -31,7 +31,7 @@ const target = (attr, data) => ({ dataset: data, disabled: false, closest: (sel)
     const docListeners = {};
     let html = '';
     const ctx = {
-        console, JSON, Object, Array, Number, String, Date, Math, Promise,
+        console, JSON, Object, Array, Number, String, Date, Math, Promise, setTimeout: (fn) => fn(),
         document: { addEventListener: (t, fn) => { (docListeners[t] = docListeners[t] || []).push(fn); } },
         esc: (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
         sent: [],
@@ -61,7 +61,11 @@ const target = (attr, data) => ({ dataset: data, disabled: false, closest: (sel)
     check(vm.runInContext('TABS.find((t) => t.id === "illegal").show()', ctx) === true, 'onglet visible avec illegal_staff');
     html = vm.runInContext('VIEWS.illegal()', ctx);
     clean(html, 'dashboard');
-    for (const s of ['Groupes', 'Membres', 'Gangs', 'Organisations', 'Cartels', 'Argent propre total', 'Argent sale total', 'Bloods', 'Vagos', 'Cartel Sinaloa', 'Pistolet'])
+    check(ctx.sent.filter((x) => x.data.name === 'loadItems').length === 1, 'liste des objets ox_inventory demandée une fois');
+    vm.runInContext('VIEWS.illegal()', ctx);
+    check(ctx.sent.filter((x) => x.data.name === 'loadItems').length === 1, 'pas de nouvelle demande au rendu suivant');
+    for (const s of ['Groupes', 'Membres', 'Gangs', 'Organisations', 'Cartels', 'Argent propre total', 'Argent sale total', 'Bloods', 'Vagos', 'Cartel Sinaloa', 'Pistolet',
+        'Points de livraison', 'lieux par défaut'])
         check(html.includes(s), `dashboard affiche « ${s} »`);
     setData({ available: false, resource: 'elyzea_illegal' });
     check(vm.runInContext('VIEWS.illegal()', ctx).includes('ensure elyzea_illegal'), 'message si la ressource n\'est pas démarrée');
@@ -116,6 +120,13 @@ for (const fx of ['tablet_og', 'tablet_lieutenant', 'tablet_recrue_vagos']) {
         clean(els['#content'].innerHTML, `${fx} › ${t}`);
     }
     const perms = data.me.perms;
+    if (fx === 'tablet_lieutenant') {
+        els['#tabs'].listeners.click.forEach((fn) => fn({ target: { closest: () => ({ dataset: { tab: 'orders' } }) } }));
+        const oh = els['#content'].innerHTML;
+        check(oh.includes('data-a="gps"') && oh.includes('Prête : point GPS'), 'commande prête : bouton GPS');
+        check(!oh.includes('data-a="createOrder"'), 'catalogue géré par le staff : pas de création côté joueur');
+        check(oh.includes('Cannabis') && oh.includes('Pistolet'), 'catalogue du groupe + commandes pour tous');
+    }
     if (fx === 'tablet_recrue_vagos') {
         check(!tabsHtml.includes('data-tab="settings"'), 'recrue : pas d\'onglet Paramètres');
         els['#tabs'].listeners.click.forEach((fn) => fn({ target: { closest: () => ({ dataset: { tab: 'members' } }) } }));

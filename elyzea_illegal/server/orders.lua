@@ -1,21 +1,45 @@
 -- =========================================================
 --  ELYZEA ILLÉGAL - COMMANDES ILLÉGALES
---  Catalogue : commandes du groupe (créées par ses grades autorisés
---  ou par le staff) + commandes proposées à tous (staff uniquement).
---  Seul le staff peut lier une commande à un objet d'inventaire livré.
+--  Catalogue : le staff choisit, groupe par groupe (ou pour tous),
+--  ce qui peut être commandé (objet ox_inventory) et à quel prix.
+--  (Config.Orders.playerCanCreate : les grades autorisés aussi, sans objet.)
 --
---  Cycle : un membre passe commande (en attente, rien n'est payé)
---          → un grade autorisé valide : le groupe paie
---          → objet à récupérer dans la tablette (ou livrée directement, RP)
+--  Cycle : un membre passe commande → le coffre du groupe paie
+--          (ou à la validation si Config.Orders.requireValidation)
+--          → livraison : voir server/deliveries.lua
 -- =========================================================
 Orders = {}
 local U = Illegal.Utils
 
 local function validPayment(p) return p == 'clean' or p == 'dirty' or p == 'both' end
 
+-- Objets ox_inventory (pour le choix du staff), relus au plus toutes les 60 s
+local itemsCache, itemsTime = nil, -1e9
+function Orders.itemList()
+    if itemsCache and GetGameTimer() - itemsTime < 60000 then return itemsCache end
+    local list, map = {}, {}
+    if GetResourceState('ox_inventory') == 'started' then
+        local ok, items = pcall(function() return exports.ox_inventory:Items() end)
+        if ok and type(items) == 'table' then
+            for name, it in pairs(items) do
+                if type(it) == 'table' then
+                    local n = tostring(it.name or name)
+                    list[#list + 1] = { name = n, label = tostring(it.label or n) }
+                    map[n] = list[#list].label
+                end
+            end
+        end
+    end
+    table.sort(list, function(a, b) return a.label:lower() < b.label:lower() end)
+    itemsCache, itemsTime = { list = list, map = map }, GetGameTimer()
+    return itemsCache
+end
+
 -- data : name, description, category, price, payment, available, item, itemCount
 local function readOrder(actor, data, current)
-    local name = U.text(data.name, 64)
+    local itemName = actor.isAdmin and U.text(data.item, 64, true) or ''
+    local items = itemName ~= '' and Orders.itemList() or nil
+    local name = U.text(data.name, 64) or (items and items.map[itemName])
     if not name then return nil, 'Donne un nom à la commande.' end
     local category = U.category(data.category)
     if not category then return nil, 'Type de commande invalide.' end
@@ -29,8 +53,9 @@ local function readOrder(actor, data, current)
         item = current and current.item or nil, itemCount = current and current.itemCount or 1,
     }
     if actor.isAdmin then
-        local item = U.text(data.item, 64, true)
+        local item = itemName
         if item ~= '' and not item:match('^[%w_]+$') then return nil, 'Nom d\'objet invalide (ex : weapon_pistol).' end
+        if item ~= '' and next(items.map) and not items.map[item] then return nil, ('L\'objet « %s » n\'existe pas dans ox_inventory.'):format(item) end
         o.item = item ~= '' and item or nil
         o.itemCount = U.int(data.itemCount, 1, 1000) or 1
     end
@@ -39,7 +64,7 @@ end
 
 -- g = nil : commande proposée à tous les groupes (staff uniquement)
 function Orders.create(actor, g, data)
-    if not g and not actor.isAdmin then return false, 'Action réservée au staff.' end
+    if not actor.isAdmin and (not g or not Config.Orders.playerCanCreate) then return false, 'Le catalogue est géré par le staff.' end
     local o, err = readOrder(actor, data)
     if not o then return false, err end
     o.groupId, o.createdBy = g and g.id or nil, actor.name
@@ -56,7 +81,7 @@ end
 local function editable(actor, g, o)
     if not o then return false end
     if actor.isAdmin then return o.groupId == nil or (g and o.groupId == g.id) end
-    return g ~= nil and o.groupId == g.id
+    return Config.Orders.playerCanCreate and g ~= nil and o.groupId == g.id
 end
 
 function Orders.update(actor, g, orderId, data)
@@ -85,6 +110,18 @@ end
 -- ---------------------------------------------------------
 --  Demandes de commande
 -- ---------------------------------------------------------
+-- Paie la commande avec le coffre du groupe puis lance la livraison. Rembourse si la livraison ne démarre pas.
+local function payAndDeliver(actor, g, r)
+    local ok, msg = Finances.payOrder(actor, g, r.account, r.total, ('%dx %s'):format(r.quantity, r.orderName))
+    if not ok then return false, msg end
+    local started, err = Deliveries.start(actor, g, r)
+    if not started then
+        Finances.refundOrder(actor, g, r.account, r.total, r.orderName)
+        return false, err
+    end
+    return true
+end
+
 function Orders.place(actor, g, orderId, quantity, account)
     local o = Cache.orders[tonumber(orderId) or -1]
     if not o or (o.groupId ~= nil and o.groupId ~= g.id) then return false, 'Commande introuvable.' end
@@ -95,9 +132,17 @@ function Orders.place(actor, g, orderId, quantity, account)
     if account ~= 'clean' and account ~= 'dirty' then return false, 'Choisis le compte de paiement.' end
     local total = o.price * quantity
     if total > Config.MaxAmount then return false, 'Montant total trop élevé.' end
-    local pendingCount = 0
-    for _, r in pairs(Cache.requests) do if r.groupId == g.id and r.status == 'pending' then pendingCount = pendingCount + 1 end end
-    if pendingCount >= Config.OrderMaxPending then return false, ('Déjà %d commandes en attente : attends qu\'elles soient traitées.'):format(pendingCount) end
+    local active = 0
+    for _, r in pairs(Cache.requests) do
+        if r.groupId == g.id and (r.status == 'pending' or r.status == 'preparing' or r.status == 'ready') then active = active + 1 end
+    end
+    if active >= Config.OrderMaxPending then return false, ('Déjà %d commandes en cours pour le groupe.'):format(active) end
+    if Deliveries.activeCount(actor.cid) >= Config.Delivery.maxActivePerPlayer then
+        return false, 'Tu as déjà une commande en cours : récupère-la avant d\'en passer une autre.'
+    end
+    if not Config.Orders.requireValidation and g.finance[account] < total then
+        return false, ('Le coffre du groupe n\'a pas assez d\'%s (%s nécessaires).'):format(Illegal.Accounts[account]:lower(), U.money(total))
+    end
 
     local r = { groupId = g.id, orderId = o.id, orderName = o.name, quantity = quantity, total = total, account = account,
         item = o.item, itemCount = o.item and (o.itemCount * quantity) or 0, requester = actor.name, requesterCid = actor.cid }
@@ -106,8 +151,20 @@ function Orders.place(actor, g, orderId, quantity, account)
     r.id, r.status, r.created = id, 'pending', os.time()
     Cache.requests[id] = r
     Log(actor, g.id, 'Commande passée', ('%s a commandé %dx %s pour %s (%s)'):format(actor.name, quantity, o.name, U.money(total), Illegal.Accounts[account]:lower()))
+
+    if Config.Orders.requireValidation then
+        Sync.group(g.id)
+        return true, ('Commande envoyée : %dx %s (%s). Elle doit être validée.'):format(quantity, o.name, U.money(total))
+    end
+    local ok, msg = payAndDeliver(actor, g, r)
+    if not ok then
+        DB.setRequestStatus(r.id, 'pending', 'cancelled', nil)
+        r.status = 'cancelled'
+        Sync.group(g.id)
+        return false, msg
+    end
     Sync.group(g.id)
-    return true, ('Commande envoyée : %dx %s (%s). Elle doit être validée.'):format(quantity, o.name, U.money(total))
+    return true, ('Commande passée : %dx %s (%s). En préparation.'):format(quantity, o.name, U.money(total))
 end
 
 local function getRequest(g, id, status)
@@ -117,23 +174,19 @@ local function getRequest(g, id, status)
     return r
 end
 
--- Validation : l'état change d'abord en base (une seule validation possible), puis le groupe paie
+-- Validation (Config.Orders.requireValidation) : le groupe paie et la livraison démarre.
+-- Le changement d'état est conditionnel en base : une seule validation possible.
 function Orders.validate(actor, g, id)
     local r, err = getRequest(g, id, 'pending')
     if not r then return false, err end
-    local nextStatus = r.item and 'ready' or 'delivered'
-    if not DB.setRequestStatus(r.id, 'pending', nextStatus, actor.name) then return false, 'Cette commande a déjà été traitée.' end
-    local ok, msg = Finances.payOrder(actor, g, r.account, r.total, ('%dx %s'):format(r.quantity, r.orderName))
-    if not ok then
-        DB.setRequestStatus(r.id, nextStatus, 'pending', nil)
-        return false, msg
+    if Deliveries.activeCount(r.requesterCid) >= Config.Delivery.maxActivePerPlayer then
+        return false, ('%s a déjà une livraison en cours.'):format(r.requester)
     end
-    r.status, r.handledBy = nextStatus, actor.name
+    local ok, msg = payAndDeliver(actor, g, r)
+    if not ok then return false, msg end
     Log(actor, g.id, 'Commande validée', ('%s a validé %dx %s (%s, %s)'):format(actor.name, r.quantity, r.orderName, U.money(r.total), Illegal.Accounts[r.account]:lower()))
-    local src = Players.bySrcCid(r.requesterCid)
-    if src then Players.notify(src, ('Ta commande %dx %s a été validée%s.'):format(r.quantity, r.orderName, r.item and ' : récupère-la dans la tablette' or ''), 'success') end
     Sync.group(g.id)
-    return true, 'Commande validée et payée.'
+    return true, 'Commande validée et payée : livraison en préparation.'
 end
 
 function Orders.refuse(actor, g, id)
@@ -148,7 +201,7 @@ function Orders.refuse(actor, g, id)
     return true, 'Commande refusée.'
 end
 
--- Le demandeur annule sa propre commande en attente
+-- Le demandeur annule sa propre commande en attente de validation (rien n'a été payé)
 function Orders.cancel(actor, g, id)
     local r, err = getRequest(g, id, 'pending')
     if not r then return false, err end
@@ -158,20 +211,4 @@ function Orders.cancel(actor, g, id)
     Log(actor, g.id, 'Commande annulée', ('%dx %s'):format(r.quantity, r.orderName))
     Sync.group(g.id)
     return true, 'Commande annulée.'
-end
-
--- Le demandeur récupère l'objet d'une commande validée
-function Orders.claim(actor, g, id)
-    local r, err = getRequest(g, id, 'ready')
-    if not r then return false, err end
-    if r.requesterCid ~= actor.cid then return false, 'Seul celui qui a passé la commande peut la récupérer.' end
-    if not DB.setRequestStatus(r.id, 'ready', 'delivered', nil) then return false, 'Cette commande a déjà été récupérée.' end
-    if not Players.giveItem(actor.src, r.item, r.itemCount) then
-        DB.setRequestStatus(r.id, 'delivered', 'ready', nil)
-        return false, 'Impossible de te donner la commande (inventaire plein ?). Réessaie plus tard.'
-    end
-    r.status = 'delivered'
-    Log(actor, g.id, 'Commande récupérée', ('%s a récupéré %dx %s (%s x%d)'):format(actor.name, r.quantity, r.orderName, r.item, r.itemCount))
-    Sync.group(g.id)
-    return true, ('Commande récupérée : %dx %s.'):format(r.quantity, r.orderName)
 end

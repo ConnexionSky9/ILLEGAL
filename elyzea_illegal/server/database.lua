@@ -22,6 +22,12 @@ function DB.install()
             end
         end
     end
+    -- Installations existantes : colonnes de livraison ajoutées si elles manquent
+    local cols = {}
+    for _, r in ipairs(MySQL.query.await([[SELECT COLUMN_NAME AS c FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'illegal_order_requests']]) or {}) do cols[r.c] = true end
+    if not cols.ready_at then MySQL.query.await('ALTER TABLE illegal_order_requests ADD COLUMN ready_at INT UNSIGNED NULL') end
+    if not cols.spot then MySQL.query.await('ALTER TABLE illegal_order_requests ADD COLUMN spot LONGTEXT NULL') end
     return true
 end
 
@@ -39,7 +45,9 @@ function DB.loadAll()
         peds     = MySQL.query.await('SELECT group_id, model, x, y, z, heading, scenario, menu FROM illegal_peds') or {},
         orders   = MySQL.query.await('SELECT id, group_id, name, description, category, price, payment, available, item, item_count, created_by FROM illegal_orders') or {},
         requests = MySQL.query.await([[SELECT id, group_id, order_id, order_name, quantity, total, account, item, item_count, status, requester, requester_cid, handled_by,
-            UNIX_TIMESTAMP(created_at) AS created FROM illegal_order_requests WHERE status IN ('pending', 'ready') OR created_at > NOW() - INTERVAL 7 DAY]]) or {},
+            ready_at, spot, UNIX_TIMESTAMP(created_at) AS created FROM illegal_order_requests
+            WHERE status IN ('pending', 'preparing', 'ready') OR created_at > NOW() - INTERVAL 7 DAY]]) or {},
+        spots    = MySQL.query.await('SELECT id, label, x, y, z, heading FROM illegal_delivery_spots') or {},
     }
 end
 
@@ -217,6 +225,23 @@ end
 function DB.setRequestStatus(id, from, to, by)
     return MySQL.update.await('UPDATE illegal_order_requests SET status = ?, handled_by = COALESCE(?, handled_by), updated_at = NOW() WHERE id = ? AND status = ?',
         { to, by, id, from }) == 1
+end
+
+-- Commande payée : la livraison démarre (préparation jusqu'à ready_at, au lieu « spot »)
+function DB.startDelivery(id, from, readyAt, spot, by)
+    return MySQL.update.await([[UPDATE illegal_order_requests SET status = 'preparing', ready_at = ?, spot = ?, handled_by = COALESCE(?, handled_by), updated_at = NOW()
+        WHERE id = ? AND status = ?]], { readyAt, json.encode(spot), by, id, from }) == 1
+end
+
+-- ---------------------------------------------------------
+--  Lieux de livraison
+-- ---------------------------------------------------------
+function DB.insertSpot(s)
+    return MySQL.insert.await('INSERT INTO illegal_delivery_spots (label, x, y, z, heading) VALUES (?, ?, ?, ?, ?)', { s.label, s.x, s.y, s.z, s.h })
+end
+
+function DB.deleteSpot(id)
+    return MySQL.update.await('DELETE FROM illegal_delivery_spots WHERE id = ?', { id })
 end
 
 -- ---------------------------------------------------------

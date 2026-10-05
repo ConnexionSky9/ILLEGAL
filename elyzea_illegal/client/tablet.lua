@@ -34,6 +34,13 @@ RegisterNUICallback('action', function(body, cb)
     TriggerServerEvent('illegal:server:action', body.name, type(body.data) == 'table' and body.data or {})
 end)
 
+-- « Remettre le GPS » d'une commande prête (purement local)
+RegisterNUICallback('gps', function(body, cb)
+    local ok = DeliveryGps(body and body.id)
+    if ok then Notify('Point GPS remis sur ta carte.', 'success') else Notify('Aucune livraison prête pour cette commande.', 'error') end
+    cb('ok')
+end)
+
 RegisterNUICallback('history', function(body, cb)
     local list = lib.callback.await('illegal:server:history', false, body and body.before)
     cb(list or {})

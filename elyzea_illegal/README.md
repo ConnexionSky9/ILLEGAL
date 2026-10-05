@@ -17,7 +17,7 @@ Gangs, organisations et cartels pour Qbox (ox_lib, oxmysql, ox_inventory), admin
 ## Ce qui a été ajouté dans admin_menu (et rien d'autre)
 | Fichier | Modification |
 |---|---|
-| `server/illegal.lua` | **nouveau** : pont vers cette ressource (même modèle que Concession / LsCustom) |
+| `server/illegal.lua` | **nouveau** : pont vers cette ressource (même modèle que Concession / LsCustom) + groupes ILLEGAL dans les coffres de l'éditeur de map |
 | `html/illegal.js` | **nouveau** : onglet ILLEGAL (réutilise les composants du menu : `formModal`, `confirmBox`, `.section`, `.stats`, `.segmented`…) |
 | `fxmanifest.lua` | +2 lignes : `server/illegal.lua`, `html/illegal.js` |
 | `html/index.html` | +1 ligne : `<script src="illegal.js">` |
@@ -31,10 +31,30 @@ liste des groupes, création (nom interne unique, nom affiché, type, descriptio
 chaque groupe : *Informations · Membres · Grades · Finances · PED · Commandes · Paramètres*. La suppression d'un groupe
 demande une confirmation puis de taper son nom interne.
 
+**Commandes et livraison** :
+1. *ILLEGAL › Gérer › Commandes* (ou « pour tous les groupes » sur la liste) : choisis l'**objet** (liste ox_inventory), la quantité livrée,
+   le **prix** et le compte (propre / sale / au choix). Une fois enregistré, les membres le voient dans leur tablette et peuvent commander.
+2. Un membre commande : le **coffre du groupe paie** (ou à la validation si `Config.Orders.requireValidation = true`).
+   Notification sur son **téléphone** : « en préparation, disponible dans 5 minutes ».
+3. 5 minutes plus tard : notification « prête », **point GPS** et **blip** sur sa carte, dans un lieu caché à plus de 1 500 m de lui.
+4. Sur place : **1 chef bras croisés** et **5 gardes armés** (animation de garde), le **sac** posé devant le chef.
+   **E** sur le sac : les objets arrivent dans son inventaire, les PNJ disparaissent.
+   Seul celui qui a commandé voit les PNJ et peut ramasser le sac (distance et identité vérifiées par le serveur).
+- Lieux : *ILLEGAL › Points de livraison › 📍 Ajouter un point à ma position* (chef placé à ta position, tourné dans ta direction).
+  Tant qu'aucun point n'est placé, les 10 lieux de `Config.Delivery.defaultSpots` sont utilisés (coordonnées approximatives : le sol est recalculé en jeu,
+  mais place tes propres points pour être sûr qu'ils soient bien cachés).
+- Le staff voit chaque livraison (statut, lieu, heure) et peut la **rendre prête tout de suite** (tests).
+- Téléphone : **lb-phone** détecté automatiquement, sinon notification ox_lib. Autre téléphone : `Config.PhoneNotify` dans `config.lua`.
+
+**Coffres de l'éditeur de map** : *Éditeur de map › Coffres › Groupes illégaux* propose aussi les groupes créés dans ILLEGAL
+(suffixe « (Illégal) »), avec leurs grades comme grade minimum. Les gangs Qbox fonctionnent comme avant ;
+si un gang Qbox porte le même nom interne qu'un groupe ILLEGAL, seul le gang Qbox apparaît dans la liste.
+Le grade minimum d'un coffre est plafonné à 100 par l'éditeur : garde des niveaux de grade ≤ 100.
+
 **Joueurs** : **F5 › <Nom du groupe>** ou **E** à côté du PED du groupe ouvrent la tablette du groupe :
 membres (promouvoir, rétrograder, changer de grade, expulser, profil, recruter par ID), grades (créer, modifier,
 supprimer, réorganiser, permissions), finances (argent propre / sale séparés, dépôt, retrait, historique),
-commandes (catalogue, commander, valider / refuser, récupérer) et paramètres. Chaque bouton n'apparaît que si le grade le permet.
+commandes (catalogue, commander, suivi de livraison, bouton « 📍 GPS ») et paramètres. Chaque bouton n'apparaît que si le grade le permet.
 
 ## Sécurité
 - Le client n'envoie **jamais** son groupe : à chaque action le serveur relit personnage (Qbox) → groupe → grade → permission.
@@ -47,7 +67,9 @@ commandes (catalogue, commander, valider / refuser, récupérer) et paramètres.
 - Anti-spam sur toutes les actions ; les tentatives refusées sont écrites en console.
 
 ## Configuration (`config.lua`)
-Compte de l'argent propre (`cash` / `bank`), argent sale (objet `black_money` ou compte), touche F5 et mode (`context` / `direct`),
+Commandes (`Config.Orders` : validation obligatoire, création par les joueurs), livraison (`Config.Delivery` : délai, distance minimum,
+modèles et armes des PNJ, nombre de gardes, animations, sac, blip, lieux par défaut), téléphone (`Config.PhoneNotify`),
+compte de l'argent propre (`cash` / `bank`), argent sale (objet `black_money` ou compte), touche F5 et mode (`context` / `direct`),
 PED (modèle par défaut, distances, animation), types de groupes, catégories de commandes et grades créés par défaut pour chaque type.
 
 **Tu as déjà un menu F5 ?** `Config.F5.enabled = false`, puis dans ton menu :
@@ -59,7 +81,8 @@ end
 ```
 
 ## Exports serveur
-`GetPlayerGroup(src)` → `{ id, name, label, type, grade, gradeLabel, gradeLevel, boss }` · `HasGroupPermission(src, perm)`
+`GetPlayerGroup(src)` → `{ id, name, label, type, grade, gradeLabel, gradeLevel, boss }` · `HasGroupPermission(src, perm)` ·
+`GetGroupList()` → groupes et grades (utilisé par les coffres d'admin_menu)
 
 ## Logs
 Toutes les actions passent par `Log()` (`server/logs.lua`) : console `[ILLEGAL]`, table `illegal_logs`,
@@ -72,10 +95,11 @@ shared/               permissions, onglets, validation des données
 server/database.lua   tout le SQL (oxmysql)
 server/cache.lua      données en mémoire (aucune requête pour lire)
 server/groups|grades|members|finances|peds|orders.lua   services réutilisables
+server/deliveries.lua livraison des commandes (lieux, préparation, ramassage du sac)
 server/tablet.lua     actions des joueurs (contrôles de sécurité)
 server/admin.lua      exports AdminData / AdminAction pour admin_menu
 server/sync.lua       mise à jour des tablettes ouvertes, du F5 et des PED
-client/               F5, PED (apparition par proximité), NUI
+client/               F5, PED (apparition par proximité), livraison (PNJ, sac, GPS, téléphone), NUI
 html/                 tablette du groupe
 ```
 

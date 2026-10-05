@@ -10,7 +10,8 @@
 -- =========================================================
 local U = Illegal.Utils
 local Selected = {}   -- [src] = groupId ouvert dans le menu staff
-AddEventHandler('playerDropped', function() Selected[source] = nil end)
+local WantItems = {}  -- [src] = true : liste des objets ox_inventory à envoyer une fois (gardée ensuite par l'interface)
+AddEventHandler('playerDropped', function() Selected[source] = nil WantItems[source] = nil end)
 
 local function staffActor(src)
     local a = Players.actor(src, true)
@@ -62,7 +63,8 @@ local function groupDetail(g)
     d.requests = {}
     for _, r in ipairs(Cache.requestsFor(g)) do
         d.requests[#d.requests + 1] = { id = r.id, orderName = r.orderName, quantity = r.quantity, total = r.total, account = r.account,
-            status = r.status, requester = r.requester, handledBy = r.handledBy, created = r.created }
+            status = r.status, requester = r.requester, handledBy = r.handledBy, created = r.created, readyAt = r.readyAt,
+            spot = r.spot and r.spot.label or nil, item = r.item, itemCount = r.itemCount }
     end
     d.logs = Cache.logs(g)
     return d
@@ -87,10 +89,20 @@ exports('AdminData', function(src)
     for _, o in pairs(Cache.orders) do if o.groupId == nil then global[#global + 1] = orderRow(o) end end
     table.sort(global, function(a, b) return a.name < b.name end)
 
+    local spots = {}
+    for _, s in pairs(Cache.spots) do spots[#spots + 1] = { id = s.id, label = s.label, x = s.x, y = s.y, z = s.z, h = s.h } end
+    table.sort(spots, function(a, b) return a.id < b.id end)
+
     local sel = src and Cache.group(Selected[src])
+    local items = src and WantItems[src] and Orders.itemList().list or nil
+    if src then WantItems[src] = nil end
     return {
         available = true, stats = stats, groups = list, globalOrders = global,
         selected = sel and groupDetail(sel) or nil,
+        spots = spots, defaultSpots = #Config.Delivery.defaultSpots, now = os.time(),
+        items = items,
+        delivery = { prepareMinutes = Config.Delivery.prepareMinutes, minDistance = Config.Delivery.minDistance,
+            requireValidation = Config.Orders.requireValidation },
         types = Config.Types, permissions = Illegal.Permissions, tabs = Illegal.Tabs, categories = Config.OrderCategories,
         defaultPed = Config.Ped.defaultModel, defaultScenario = Config.Ped.scenario, maxAmount = Config.MaxAmount,
     }
@@ -156,11 +168,22 @@ end
 A.createOrder = function(src, d, g) return Orders.create(staffActor(src), (not d.global) and g or nil, d) end
 A.updateOrder = function(src, d, g) return Orders.update(staffActor(src), g, U.int(d.orderId, 1), d) end
 A.deleteOrder = function(src, d, g) return Orders.delete(staffActor(src), g, U.int(d.orderId, 1)) end
+A.loadItems = function(src) WantItems[src] = true return true end
+A.readyNow = function(src, d, g) return Deliveries.readyNow(staffActor(src), g, U.int(d.requestId, 1)) end
+A.addSpot = function(src, d) return Deliveries.addSpot(staffActor(src), d) end
+A.removeSpot = function(src, d) return Deliveries.removeSpot(staffActor(src), d.spotId) end
+A.gotoSpot = function(src, d)
+    local s = Cache.spots[U.int(d.spotId, 1) or -1]
+    if not s then return false, 'Point introuvable.' end
+    TriggerClientEvent('adminmenu:teleport', src, { x = s.x, y = s.y, z = s.z + 1.0 })
+    return true
+end
+
 A.validateRequest = function(src, d, g) return Orders.validate(staffActor(src), g, U.int(d.requestId, 1)) end
 A.refuseRequest = function(src, d, g) return Orders.refuse(staffActor(src), g, U.int(d.requestId, 1)) end
 
 -- Actions qui n'ont pas besoin d'un groupe existant
-local NO_GROUP = { select = true, back = true, createGroup = true }
+local NO_GROUP = { select = true, back = true, createGroup = true, loadItems = true, addSpot = true, removeSpot = true, gotoSpot = true }
 -- Commandes « tous les groupes » : le groupe est facultatif
 local OPTIONAL_GROUP = { createOrder = true, updateOrder = true, deleteOrder = true }
 

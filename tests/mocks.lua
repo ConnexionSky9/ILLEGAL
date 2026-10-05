@@ -122,6 +122,8 @@ local resources = {
             return true
         end,
         CanCarryItem = function(_, src) return M.players[src].canCarry end,
+        Items = function() return { weapon_pistol = { name = 'weapon_pistol', label = 'Pistolet' }, black_money = { name = 'black_money', label = 'Argent sale' },
+            weed = { name = 'weed', label = 'Cannabis' } } end,
     },
     admin_menu = {
         HasPermission = function(_, src, perm) local p = M.players[tonumber(src)] return p ~= nil and p.staff and perm == 'illegal_staff' end,
@@ -148,8 +150,15 @@ function GetGameTimer() timer = timer + 1 return timer end
 function M.advance(ms) timer = timer + ms end
 function SetTimeout(_, fn) M.timers[#M.timers + 1] = fn end
 function M.flush() local t = M.timers M.timers = {} for _, fn in ipairs(t) do fn() end end
-function CreateThread(fn) fn() end
-function Wait() end
+-- Threads : exécutés jusqu'au premier Wait, puis relancés à la main (M.tick)
+M.threads = {}
+function CreateThread(fn)
+    local co = coroutine.create(fn)
+    assert(coroutine.resume(co))
+    if coroutine.status(co) ~= 'dead' then M.threads[#M.threads + 1] = co end
+end
+function Wait() coroutine.yield() end
+function M.tick() for _, co in ipairs(M.threads) do assert(coroutine.resume(co)) end M.flush() end
 function PerformHttpRequest() end
 function LoadResourceFile() return nil end
 function RegisterNetEvent(name, fn) if fn then M.net[name] = fn end end

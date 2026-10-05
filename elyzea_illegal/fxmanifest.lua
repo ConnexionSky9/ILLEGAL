@@ -19,6 +19,7 @@ client_scripts {
     'client/peds.lua',
     'client/f5.lua',
     'client/tablet.lua',
+    'client/deliveries.lua',
 }
 
 server_scripts {
@@ -34,6 +35,7 @@ server_scripts {
     'server/finances.lua',
     'server/peds.lua',
     'server/orders.lua',
+    'server/deliveries.lua',
     'server/tablet.lua',
     'server/admin.lua',
     'server/main.lua',

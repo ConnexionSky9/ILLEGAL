@@ -3,7 +3,7 @@
 --  mêmes formes de lignes que oxmysql (JSON en texte, 0/1 pour les booléens),
 --  mêmes garde-fous (UNIQUE, solde jamais négatif, changement d'état conditionnel).
 -- =========================================================
-local T = { groups = {}, grades = {}, members = {}, finances = {}, tx = {}, peds = {}, orders = {}, requests = {}, logs = {} }
+local T = { groups = {}, grades = {}, members = {}, finances = {}, tx = {}, peds = {}, orders = {}, requests = {}, logs = {}, spots = {} }
 local seq = 0
 local function nextId() seq = seq + 1 return seq end
 local function enc(t) return json.encode(t or {}) end
@@ -19,7 +19,7 @@ function DB.loadAll()
     local req = {}
     for _, r in pairs(T.requests) do req[#req + 1] = copy(r) end
     return { groups = list(T.groups), grades = list(T.grades), members = list(T.members), finances = list(T.finances),
-        peds = list(T.peds), orders = list(T.orders), requests = req }
+        peds = list(T.peds), orders = list(T.orders), requests = req, spots = list(T.spots) }
 end
 
 local function txRows(groupId, beforeId, limit)
@@ -157,6 +157,20 @@ function DB.setRequestStatus(id, from, to, by)
     if by then r.handled_by = by end
     return true
 end
+
+function DB.startDelivery(id, from, readyAt, spot, by)
+    local r = T.requests[id]
+    if not r or r.status ~= from then return false end
+    r.status, r.ready_at, r.spot = 'preparing', readyAt, json.encode(spot)
+    if by then r.handled_by = by end
+    return true
+end
+function DB.insertSpot(s)
+    local id = nextId()
+    T.spots[id] = { id = id, label = s.label, x = s.x, y = s.y, z = s.z, heading = s.h }
+    return id
+end
+function DB.deleteSpot(id) T.spots[id] = nil return 1 end
 
 function DB.insertLog(groupId, actor, action, details)
     T.logs[#T.logs + 1] = { group_id = groupId, actor = actor, action = action, details = details, created = os.time() }

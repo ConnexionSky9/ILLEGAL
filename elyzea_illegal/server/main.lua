@@ -24,6 +24,7 @@ local function onLoaded(src)
     Members.touch(src)
     Sync.membership(src)
     Sync.peds(src)
+    Deliveries.resend(src)
 end
 
 -- Évènements serveur uniquement (AddEventHandler) : un client ne peut pas les déclencher
@@ -43,6 +44,7 @@ RegisterNetEvent('illegal:server:hello', function()
     local cid = Players.cid(src)
     if cid then Loaded[src] = cid end
     Sync.membership(src)
+    Deliveries.resend(src)
 end)
 
 -- Changement de personnage / déconnexion : on enregistre la dernière connexion
@@ -73,4 +75,16 @@ end)
 exports('HasGroupPermission', function(src, perm)
     local _, _, grade = Cache.membership(Players.cid(src))
     return Cache.hasPerm(grade, perm)
+end)
+
+-- Groupes et leurs grades (coffres de l'éditeur de map d'admin_menu : accès « Groupes illégaux »)
+exports('GetGroupList', function()
+    local list = {}
+    for _, g in pairs(Cache.groups) do
+        local grades = {}
+        for _, gr in ipairs(Cache.sortedGrades(g)) do grades[#grades + 1] = { level = gr.level, label = gr.label } end
+        list[#list + 1] = { name = g.name, label = g.label, type = g.type, grades = grades }
+    end
+    table.sort(list, function(a, b) return a.label:lower() < b.label:lower() end)
+    return list
 end)

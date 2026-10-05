@@ -50,9 +50,58 @@ Config.Ped = {
 
 -- ---------------------------------------------------------
 --  Commandes illégales
+--  Le catalogue (objet + prix) se règle dans admin_menu › ILLEGAL ›
+--  groupe › Commandes (ou « pour tous les groupes » sur la liste).
 -- ---------------------------------------------------------
 Config.OrderMaxQuantity = 50
-Config.OrderMaxPending = 10          -- commandes en attente maximum par groupe
+Config.OrderMaxPending = 10          -- commandes en cours maximum par groupe
+Config.Orders = {
+    requireValidation = false,       -- true : un grade « Valider les commandes » doit valider avant la livraison
+    playerCanCreate = false,         -- true : les grades « Créer / configurer les commandes » gèrent aussi le catalogue
+}
+
+-- ---------------------------------------------------------
+--  Livraison des commandes
+--  Commande passée → payée par le coffre du groupe → préparation →
+--  point GPS → un chef (bras croisés) et ses gardes armés attendent
+--  dans un coin caché, le sac posé devant le chef. Sac ramassé = livré,
+--  les PNJ disparaissent.
+-- ---------------------------------------------------------
+Config.Delivery = {
+    prepareMinutes = 5,              -- délai avant que la commande soit prête
+    minDistance = 1500.0,            -- distance minimum entre le joueur (au moment de la commande) et le lieu de livraison
+    maxActivePerPlayer = 1,          -- livraisons en cours par joueur
+    spawnDistance = 150.0,           -- les PNJ apparaissent quand le joueur est à cette distance
+    pickupDistance = 2.0,            -- distance pour ramasser le sac [E]
+    bossModel = 'g_m_m_chicold_01',
+    guardModels = { 'g_m_y_mexgoon_02', 'g_m_y_mexgoon_03', 'g_m_m_mexboss_01', 'g_m_y_ballasout_01', 'g_m_y_lost_02' },
+    guardWeapons = { 'WEAPON_CARBINERIFLE', 'WEAPON_SMG', 'WEAPON_ASSAULTRIFLE', 'WEAPON_PUMPSHOTGUN' },
+    guardCount = 5,                  -- gardes armés (+ le chef = 6 PNJ)
+    guardScenario = 'WORLD_HUMAN_GUARD_STAND',
+    bossAnim = { dict = 'amb@world_human_hang_out_street@female_arms_crossed@base', name = 'base' },   -- bras croisés
+    bagModel = 'prop_cs_heist_bag_02',
+    blip = { sprite = 501, color = 1, scale = 0.9, label = 'Commande illégale' },
+
+    -- Lieux cachés utilisés tant qu'aucun point n'est placé dans admin_menu › ILLEGAL › Points de livraison.
+    -- Le sol (z) est recalculé en jeu ; ajuste ou remplace ces points depuis le menu.
+    defaultSpots = {
+        { label = 'Port - conteneurs',          x = 1015.0,  y = -3105.0, z = 5.9,   h = 90.0 },
+        { label = 'Champs pétrolifères',         x = 1505.0,  y = -2120.0, z = 77.0,  h = 0.0 },
+        { label = 'Lit de la rivière (LS)',      x = 640.0,   y = -1260.0, z = 10.5,  h = 180.0 },
+        { label = 'Casse de Joshua Road',        x = 2350.0,  y = 3050.0,  z = 48.2,  h = 270.0 },
+        { label = 'Carrière Davis Quartz',       x = 2955.0,  y = 2785.0,  z = 41.5,  h = 300.0 },
+        { label = 'Stab City',                   x = 75.0,    y = 3705.0,  z = 39.7,  h = 45.0 },
+        { label = 'Ferme O\'Neil (Grapeseed)',   x = 2445.0,  y = 4975.0,  z = 46.8,  h = 225.0 },
+        { label = 'Scierie de Paleto',           x = -575.0,  y = 5325.0,  z = 70.2,  h = 160.0 },
+        { label = 'Quais de Galilee',            x = 1305.0,  y = 4325.0,  z = 38.2,  h = 80.0 },
+        { label = 'Raton Canyon',                x = -1520.0, y = 4415.0,  z = 11.5,  h = 300.0 },
+    },
+}
+
+-- Notification « téléphone » : lb-phone est détecté automatiquement, sinon notification ox_lib.
+-- Pour un autre téléphone, remplace cette fonction (côté client) :
+--   Config.PhoneNotify = function(title, message) exports['mon-phone']:Notify(title, message) end
+Config.PhoneNotify = nil
 
 -- ---------------------------------------------------------
 --  Types de groupes

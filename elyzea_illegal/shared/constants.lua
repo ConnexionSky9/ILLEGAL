@@ -44,7 +44,7 @@ Illegal.ActionTab = {
     createGrade = 'grades', updateGrade = 'grades', deleteGrade = 'grades', moveGrade = 'grades',
     deposit = 'finances', withdraw = 'finances',
     placeOrder = 'orders', createOrder = 'orders', updateOrder = 'orders', deleteOrder = 'orders',
-    validateRequest = 'orders', refuseRequest = 'orders', cancelRequest = 'orders', claimRequest = 'orders',
+    validateRequest = 'orders', refuseRequest = 'orders', cancelRequest = 'orders',
     saveSettings = 'settings',
 }
 
@@ -59,6 +59,6 @@ Illegal.TxTypes = {
 Illegal.Payments = { clean = 'Argent propre', dirty = 'Argent sale', both = 'Propre ou sale' }
 
 Illegal.RequestStatus = {
-    pending = 'En attente', ready = 'Prête à récupérer', delivered = 'Livrée',
+    pending = 'En attente de validation', preparing = 'En préparation', ready = 'Prête : point GPS', delivered = 'Livrée',
     refused = 'Refusée', cancelled = 'Annulée',
 }

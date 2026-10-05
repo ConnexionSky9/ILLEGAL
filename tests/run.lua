@@ -7,7 +7,7 @@ local M = require('mocks')
 local ROOT = 'elyzea_illegal/'
 for _, f in ipairs({ 'config.lua', 'shared/constants.lua', 'shared/utils.lua' }) do dofile(ROOT .. f) end
 dofile('tests/db_memory.lua')
-for _, f in ipairs({ 'logs', 'players', 'cache', 'sync', 'groups', 'grades', 'members', 'finances', 'peds', 'orders', 'tablet', 'admin', 'main' }) do
+for _, f in ipairs({ 'logs', 'players', 'cache', 'sync', 'groups', 'grades', 'members', 'finances', 'peds', 'orders', 'deliveries', 'tablet', 'admin', 'main' }) do
     dofile(ROOT .. 'server/' .. f .. '.lua')
 end
 M.flush()
@@ -243,49 +243,120 @@ check(admin('respawnPed', { id = bloods.id }) == true and bloods.ped.version == 
 check(admin('removePed', { id = vagos.id }) == false, 'supprimer un PED inexistant refusé')
 
 -- =========================================================
-section('Commandes illégales')
+section('Commandes : catalogue choisi par le staff')
 -- =========================================================
 open(2, 'f5')
 check(admin('createOrder', { global = true, name = 'Pistolet', category = 'weapons', price = 1000, payment = 'dirty', item = 'weapon_pistol', itemCount = 1 }) == true, 'staff crée une commande pour tous')
 local pistol
 for _, o in pairs(Cache.orders) do if o.name == 'Pistolet' then pistol = o end end
 check(pistol and pistol.groupId == nil and pistol.item == 'weapon_pistol', 'commande globale avec objet')
+check(admin('createOrder', { id = bloods.id, name = '', category = 'drugs', price = 50, payment = 'both', item = 'weed', itemCount = 10 }) == true, 'staff choisit un objet pour les Bloods')
+local weed
+for _, o in pairs(Cache.orders) do if o.item == 'weed' then weed = o end end
+check(weed and weed.name == 'Cannabis' and weed.groupId == bloods.id and weed.price == 50, 'nom vide = nom de l\'objet ox_inventory, prix enregistré')
+check(admin('createOrder', { id = bloods.id, name = 'X', category = 'other', price = 1, payment = 'dirty', item = 'objet_inexistant' }) == false, 'objet inexistant dans ox_inventory refusé')
 act(2, 'createOrder', { name = 'Kalash', category = 'weapons', price = 1, payment = 'clean', item = 'weapon_assaultrifle', itemCount = 50 })
-local kalash
-for _, o in pairs(Cache.orders) do if o.name == 'Kalash' then kalash = o end end
-check(kalash and kalash.groupId == bloods.id and kalash.item == nil, 'un joueur ne peut pas lier un objet à une commande (anti-exploit)')
+check(not (function() for _, o in pairs(Cache.orders) do if o.name == 'Kalash' then return true end end end)(), 'les joueurs ne créent pas de commande (catalogue staff)')
 act(2, 'updateOrder', { id = pistol.id, name = 'Pistolet', category = 'weapons', price = 0, payment = 'dirty' })
-check(pistol.price == 1000, 'un joueur ne modifie pas une commande globale')
-act(3, 'placeOrder', { id = kalash.id, quantity = 1, account = 'clean' })
-check(not (function() for _, r in pairs(Cache.requests) do if r.groupId == vagos.id and r.orderName == 'Kalash' then return true end end end)(), 'Vagos ne peut pas commander une commande des Bloods')
+check(pistol.price == 1000, 'un joueur ne modifie pas le catalogue')
+act(3, 'placeOrder', { id = weed.id, quantity = 1, account = 'dirty' })
+check(not (function() for _, r in pairs(Cache.requests) do if r.groupId == vagos.id then return true end end end)(), 'Vagos ne peut pas commander le catalogue des Bloods')
+local vt2 = Tablet.build(3)
+check(vt2 and #vt2.orders == 1 and vt2.orders[1].name == 'Pistolet', 'Vagos ne voit que les commandes pour tous')
+
+-- =========================================================
+section('Commandes : paiement et livraison')
+-- =========================================================
 act(2, 'placeOrder', { id = pistol.id, quantity = 999 })
+check(not next(Cache.requests), 'quantité hors limite refusée')
+M.players[2].coords = vector3(500, 500, 30)
+local dirtyBefore = bloods.finance.dirty
 act(2, 'placeOrder', { id = pistol.id, quantity = 2, account = 'clean' })
 local req
 for _, r in pairs(Cache.requests) do if r.orderName == 'Pistolet' then req = r end end
-check(req and req.quantity == 2 and req.account == 'dirty' and req.total == 2000 and req.status == 'pending', 'commande passée (paiement imposé : sale, quantité bornée)')
-check(bloods.finance.dirty == 201000, 'rien n\'est payé avant validation')
-admin('updateGrade', { id = bloods.id, gradeId = LIEUT.id, name = 'lieutenant', label = 'Lieutenant', level = LIEUT.level,
-    perms = (function() local p = {} for k in pairs(LIEUT.perms) do p[k] = true end p.orders_validate = nil return p end)() })
-act(2, 'validateRequest', { id = req.id })
-check(req.status == 'pending', 'validation sans permission refusée')
-act(1, 'validateRequest', { id = req.id })
-check(req.status == 'ready' and bloods.finance.dirty == 199000, 'OG valide : le coffre paie 2 000 $ d\'argent sale')
-act(1, 'validateRequest', { id = req.id })
-check(bloods.finance.dirty == 199000, 'double validation impossible (pas de double paiement)')
-act(1, 'claimRequest', { id = req.id })
-check(req.status == 'ready', 'seul le demandeur récupère sa commande')
-act(2, 'claimRequest', { id = req.id })
-check(req.status == 'delivered' and M.players[2].items.weapon_pistol == 2, 'Mike récupère 2 pistolets')
-act(2, 'claimRequest', { id = req.id })
-check(M.players[2].items.weapon_pistol == 2, 'récupération en double impossible')
-check(admin('createOrder', { id = bloods.id, name = 'Villa', category = 'other', price = 5000000, payment = 'clean' }) == true, 'staff crée une commande de groupe')
+check(req and req.quantity == 2 and req.account == 'dirty' and req.total == 2000, 'commande passée (paiement imposé : sale)')
+check(req and req.status == 'preparing' and bloods.finance.dirty == dirtyBefore - 2000, 'payée tout de suite par le coffre du groupe, en préparation')
+check(req and req.readyAt and req.readyAt - os.time() >= 299 and req.readyAt - os.time() <= 300, 'prête dans 5 minutes')
+check(req and req.spot and math.sqrt((req.spot.x - 500) ^ 2 + (req.spot.y - 500) ^ 2) >= Config.Delivery.minDistance, 'lieu de livraison éloigné du joueur')
+local ph = M.lastClientEvent(2, 'illegal:client:phone')
+check(ph and ph.args[2]:find('en préparation') and ph.args[2]:find('5 minutes'), 'notification téléphone : en préparation, disponible dans 5 minutes')
+check(M.lastClientEvent(2, 'illegal:client:delivery') == nil, 'aucun point GPS avant la fin de la préparation')
+check(Cache.transactions(bloods)[1].type == 'order' and Cache.transactions(bloods)[1].amount == -2000, 'paiement dans l\'historique financier')
+act(2, 'placeOrder', { id = weed.id, quantity = 1, account = 'clean' })
+local n = 0 for _ in pairs(Cache.requests) do n = n + 1 end
+check(n == 1, 'une seule livraison en cours par joueur')
+
+local bag = Deliveries.bagPos(req.spot)
+M.players[2].coords = vector3(bag.x, bag.y, bag.z)
+M.fromClient(2, 'illegal:server:pickup', req.id)
+check(req.status == 'preparing' and not M.players[2].items.weapon_pistol, 'impossible de ramasser avant la fin de la préparation')
+M.tick()
+check(req.status == 'preparing', 'pas prête avant 5 minutes')
+req.readyAt = os.time() - 1
+M.tick()
+check(req.status == 'ready' and DB._tables.requests[req.id].status == 'ready', 'après 5 minutes : prête')
+local dl = M.lastClientEvent(2, 'illegal:client:delivery')
+check(dl and dl.args[1].id == req.id and dl.args[1].x == req.spot.x and dl.args[2] == true, 'point GPS + blip envoyés à celui qui a commandé')
+check(M.lastClientEvent(2, 'illegal:client:phone').args[2]:find('prête'), 'notification téléphone : commande prête')
+check(M.lastClientEvent(1, 'illegal:client:delivery') == nil, 'les autres joueurs ne reçoivent pas le lieu')
+
+M.players[1].coords = vector3(bag.x, bag.y, bag.z)
+M.fromClient(1, 'illegal:server:pickup', req.id) M.advance(5000)
+check(req.status == 'ready' and M.lastNotify(1) == 'Ce sac n\'est pas pour toi.', 'un autre joueur ne peut pas prendre le sac')
+M.players[2].coords = vector3(bag.x + 30, bag.y, bag.z)
+M.fromClient(2, 'illegal:server:pickup', req.id) M.advance(5000)
+check(req.status == 'ready', 'trop loin du sac : rien')
+M.players[2].coords = vector3(bag.x, bag.y, bag.z)
+M.players[2].canCarry = false
+M.fromClient(2, 'illegal:server:pickup', req.id) M.advance(5000)
+check(req.status == 'ready' and not M.players[2].items.weapon_pistol, 'inventaire plein : le sac reste là')
+M.players[2].canCarry = true
+M.fromClient(2, 'illegal:server:pickup', req.id) M.advance(5000)
+check(req.status == 'delivered' and M.players[2].items.weapon_pistol == 2, 'sac ramassé : 2 pistolets donnés')
+check(M.lastClientEvent(2, 'illegal:client:deliveryDone') and M.lastClientEvent(2, 'illegal:client:deliveryDone').args[1] == req.id, 'les PNJ disparaissent (évènement client)')
+M.fromClient(2, 'illegal:server:pickup', req.id) M.advance(5000)
+check(M.players[2].items.weapon_pistol == 2, 'pas de double ramassage')
+
+check(admin('createOrder', { id = bloods.id, name = 'Villa', category = 'other', price = 5000000, payment = 'clean' }) == true, 'staff crée une commande chère')
 local villa
 for _, o in pairs(Cache.orders) do if o.name == 'Villa' then villa = o end end
+local cleanBefore = bloods.finance.clean
 act(2, 'placeOrder', { id = villa.id, quantity = 1 })
+check(bloods.finance.clean == cleanBefore and Deliveries.activeCount('CID_B') == 0, 'coffre insuffisant : refusée, rien débité')
+
+-- Reconnexion : la livraison prête est renvoyée
+act(2, 'placeOrder', { id = weed.id, quantity = 2, account = 'clean' })
+local wreq
+for _, r in pairs(Cache.requests) do if r.orderName == 'Cannabis' then wreq = r end end
+check(wreq and wreq.status == 'preparing' and wreq.account == 'clean' and wreq.total == 100 and wreq.itemCount == 20, 'commande « propre ou sale » payée avec le compte choisi')
+check(admin('readyNow', { id = bloods.id, requestId = wreq.id }) == true and wreq.status == 'ready', 'staff : « rendre prête maintenant »')
+local before = #M.clientEvents
+M.fromClient(2, 'illegal:server:hello') M.advance(20000)
+local resent = false
+for i = before + 1, #M.clientEvents do local e = M.clientEvents[i] if e.target == 2 and e.name == 'illegal:client:delivery' and e.args[1].id == wreq.id then resent = true end end
+check(resent, 'reconnexion : point GPS de la commande prête renvoyé')
+
+-- Mode validation (Config.Orders.requireValidation)
+Config.Orders.requireValidation = true
+local cleanV = bloods.finance.clean
+act(1, 'placeOrder', { id = weed.id, quantity = 1, account = 'clean' })
 local vreq
-for _, r in pairs(Cache.requests) do if r.orderName == 'Villa' then vreq = r end end
+for _, r in pairs(Cache.requests) do if r.requesterCid == 'CID_A' then vreq = r end end
+check(vreq and vreq.status == 'pending' and bloods.finance.clean == cleanV, 'avec validation : en attente, rien payé')
 act(1, 'validateRequest', { id = vreq.id })
-check(vreq.status == 'pending' and bloods.finance.clean == 30000, 'solde insuffisant : commande non validée, rien débité')
+check(vreq.status == 'preparing' and bloods.finance.clean == cleanV - 50, 'validée : payée et en préparation')
+act(1, 'validateRequest', { id = vreq.id })
+check(bloods.finance.clean == cleanV - 50, 'double validation impossible')
+Config.Orders.requireValidation = false
+
+-- Points de livraison placés par le staff
+M.players[99].coords = vector3(-2000, 3000, 20)
+check(admin('addSpot', { label = 'Hangar', useMyPosition = true }) == true, 'staff ajoute un point de livraison à sa position')
+local spots = Deliveries.spots()
+check(#spots == 1 and spots[1].label == 'Hangar' and spots[1].x == -2000, 'les points du staff remplacent ceux par défaut')
+local sid
+for id in pairs(Cache.spots) do sid = id end
+check(admin('removeSpot', { spotId = sid }) == true and #Deliveries.spots() == #Config.Delivery.defaultSpots, 'suppression : retour aux lieux par défaut')
 
 -- Données réelles pour le test de rendu des interfaces (tests/ui.js)
 local FIX = os.getenv('FIXTURES')
@@ -328,6 +399,10 @@ for _, g in pairs(b2.grades) do if g.name == 'sergent' then s2 = g end end
 check(s2 and s2.perms.kick == snapshot.sergentPerms and s2.perms.recruit, 'permissions des grades rechargées')
 check(b2.ped and b2.ped.model == snapshot.ped and b2.ped.menu.orders and not b2.ped.menu.finances, 'PED et son menu rechargés')
 check(b2.settings.f5Tabs.finances == true, 'configuration F5 rechargée')
+local w2 = Cache.requests[wreq.id]
+check(w2 and w2.status == 'ready' and w2.spot and w2.spot.x == wreq.spot.x and w2.itemCount == 20, 'livraison prête rechargée (lieu, objets)')
+local v2 = Cache.requests[vreq.id]
+check(v2 and v2.status == 'preparing' and v2.readyAt == vreq.readyAt, 'livraison en préparation rechargée (heure de fin conservée)')
 local g, m, grade = Cache.membership('CID_A')
 check(g and g.name == 'bloods' and grade.boss, 'à la reconnexion, John retrouve groupe, grade et permissions')
 bloods = b2

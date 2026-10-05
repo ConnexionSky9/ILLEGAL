@@ -6,7 +6,7 @@
 --  illegal_groups ─┬─ illegal_grades ── illegal_members
 --                  ├─ illegal_finances ── illegal_transactions
 --                  ├─ illegal_peds
---                  ├─ illegal_orders ── illegal_order_requests
+--                  ├─ illegal_orders ── illegal_order_requests (livraison : ready_at, spot)
 --                  └─ illegal_logs
 --  Supprimer un groupe supprime tout le reste (ON DELETE CASCADE).
 -- =========================================================
@@ -125,11 +125,24 @@ CREATE TABLE IF NOT EXISTS `illegal_order_requests` (
     `requester`    VARCHAR(100) NOT NULL DEFAULT '',
     `requester_cid` VARCHAR(50) NOT NULL,
     `handled_by`   VARCHAR(100) NULL,
+    `ready_at`     INT UNSIGNED NULL,
+    `spot`         LONGTEXT     NULL,
     `created_at`   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`   TIMESTAMP    NULL DEFAULT NULL,
     PRIMARY KEY (`id`),
     KEY `idx_illegal_requests_group` (`group_id`, `status`),
     CONSTRAINT `fk_illegal_requests_group` FOREIGN KEY (`group_id`) REFERENCES `illegal_groups` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Lieux de livraison des commandes (placés par le staff)
+CREATE TABLE IF NOT EXISTS `illegal_delivery_spots` (
+    `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `label`       VARCHAR(64)  NOT NULL DEFAULT '',
+    `x`           DOUBLE       NOT NULL,
+    `y`           DOUBLE       NOT NULL,
+    `z`           DOUBLE       NOT NULL,
+    `heading`     DOUBLE       NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Journal : group_id NULL = action générale (ex. suppression d'un groupe)

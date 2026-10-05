@@ -44,3 +44,65 @@ table.insert(AM.DataHooks, function(src, data)
     local ok, d = pcall(function() return exports[RES]:AdminData(src) end)
     data.illegal = ok and d or { available = false, resource = RES, error = true }
 end)
+
+-- ---------------------------------------------------------
+--  Éditeur de map › Coffres › « Groupes illégaux »
+--  Les groupes créés dans l'onglet ILLEGAL s'ajoutent à la liste des gangs
+--  Qbox, et leurs membres peuvent ouvrir les coffres qui les autorisent
+--  (grade minimum = niveau du grade ILLEGAL). Rien ne change pour les gangs Qbox.
+-- ---------------------------------------------------------
+local function illegalGroups()
+    if not available() then return {} end
+    local ok, list = pcall(function() return exports[RES]:GetGroupList() end)
+    return ok and type(list) == 'table' and list or {}
+end
+
+local function illegalMembership(src)
+    if not available() then return nil end
+    local ok, g = pcall(function() return exports[RES]:GetPlayerGroup(src) end)
+    return ok and type(g) == 'table' and g or nil
+end
+
+if Bridge and Bridge.GetGangs then
+    local baseGetGangs = Bridge.GetGangs
+    Bridge.GetGangs = function(...)
+        local base = baseGetGangs(...)
+        local extra = illegalGroups()
+        if #extra == 0 then return base end
+        local out, seen = {}, {}
+        for _, g in ipairs(base) do out[#out + 1] = g seen[g.name] = true end   -- copie : la liste Qbox reste en cache intacte
+        for _, g in ipairs(extra) do
+            if not seen[g.name] then out[#out + 1] = { name = g.name, label = g.label .. ' (Illégal)', grades = g.grades or {} } end
+        end
+        table.sort(out, function(a, b) return a.label:lower() < b.label:lower() end)
+        return out
+    end
+end
+
+-- Joueur sans gang Qbox : son groupe ILLEGAL compte comme groupe illégal (coffres, annonces des drops)
+if Bridge and Bridge.GetGang then
+    local baseGetGang = Bridge.GetGang
+    Bridge.GetGang = function(src, ...)
+        local name, grade = baseGetGang(src, ...)
+        if name then return name, grade end
+        local g = illegalMembership(src)
+        if g then return g.name, g.gradeLevel or 0 end
+        return name, grade
+    end
+end
+
+-- Coffre réservé à certains groupes : un membre d'un groupe ILLEGAL autorisé l'ouvre aussi,
+-- même s'il a par ailleurs un gang Qbox
+if StashAccess then
+    local baseStashAccess = StashAccess
+    StashAccess = function(src, st, ...)
+        if baseStashAccess(src, st, ...) then return true end
+        if not (st and st.gangs and #st.gangs > 0) then return false end
+        local g = illegalMembership(src)
+        if not g then return false end
+        for _, x in ipairs(st.gangs) do
+            if x.gang == g.name and (g.gradeLevel or 0) >= (x.grade or 0) then return true end
+        end
+        return false
+    end
+end

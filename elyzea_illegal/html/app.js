@@ -16,7 +16,9 @@ const date = (t) => (t ? new Date(t * 1000).toLocaleString('fr-FR', { day: '2-di
 const ACCOUNTS = { clean: 'Argent propre', dirty: 'Argent sale' };
 const PAYMENTS = { clean: 'Argent propre', dirty: 'Argent sale', both: 'Propre ou sale' };
 const TX = { deposit: 'Dépôt', withdraw: 'Retrait', admin_add: 'Ajout staff', admin_remove: 'Retrait staff', order: 'Commande' };
-const STATUS = { pending: ['En attente', 'gold'], ready: ['Prête à récupérer', 'ok'], delivered: ['Livrée', 'ok'], refused: ['Refusée', 'danger'], cancelled: ['Annulée', ''] };
+const STATUS = { pending: ['En attente de validation', 'gold'], preparing: ['En préparation', 'gold'], ready: ['Prête : point GPS', 'ok'], delivered: ['Livrée', 'ok'],
+    refused: ['Refusée', 'danger'], cancelled: ['Annulée', ''] };
+const hhmm = (t) => (t ? new Date(t * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
 
 let D = null;
 let tab = 'home';
@@ -210,7 +212,9 @@ VIEWS.orders = () => {
     return `
         <div class="chips"><span class="chip ${orderCat === 'all' ? 'on' : ''}" data-cat="all">Tout</span>
             ${D.categories.map((c) => `<span class="chip ${orderCat === c.key ? 'on' : ''}" data-cat="${c.key}">${c.ico} ${esc(c.label)}</span>`).join('')}
-            <span style="flex:1"></span>${can('orders_manage') ? '<button class="btn primary" data-a="createOrder">+ Créer une commande</button>' : ''}</div>
+            <span style="flex:1"></span>${D.config.canCreateOrders && can('orders_manage') ? '<button class="btn primary" data-a="createOrder">+ Créer une commande</button>' : ''}</div>
+        <p class="hint">${D.config.requireValidation ? 'Une commande doit être validée par un grade autorisé, puis' : 'Une commande est'} payée par le coffre du groupe.
+            Elle est prête ${D.config.prepareMinutes} minutes plus tard : un point GPS s'ajoute sur ta carte, va chercher le sac devant le chef.</p>
         ${orders.length ? `<div class="cards">${orders.map((o) => `<div class="card">
             <div class="muted">${catOf(o.category).ico} ${esc(catOf(o.category).label)}${o.global ? ' · <span class="badge">Tous groupes</span>' : ''}${o.available ? '' : ' · <span class="badge danger">Indisponible</span>'}</div>
             <div class="t">${esc(o.name)}</div>
@@ -224,11 +228,11 @@ VIEWS.orders = () => {
             ${reqs.length ? `<table><tr><th>Date</th><th>Commande</th><th>Par</th><th>Total</th><th>Statut</th><th></th></tr>
             ${reqs.map((r) => `<tr><td class="muted">${date(r.created)}</td><td>${r.quantity}x ${esc(r.orderName)}</td><td>${esc(r.requester)}</td>
                 <td>${money(r.total)}<br><span class="muted">${ACCOUNTS[r.account]}</span></td>
-                <td><span class="badge ${(STATUS[r.status] || [])[1] || ''}">${(STATUS[r.status] || [r.status])[0]}</span>${r.handledBy ? `<br><span class="muted">${esc(r.handledBy)}</span>` : ''}</td>
+                <td><span class="badge ${(STATUS[r.status] || [])[1] || ''}">${(STATUS[r.status] || [r.status])[0]}</span>${r.status === 'preparing' && r.readyAt ? `<br><span class="muted">Prête vers ${hhmm(r.readyAt)}</span>` : ''}${r.handledBy ? `<br><span class="muted">${esc(r.handledBy)}</span>` : ''}</td>
                 <td class="right">
                     ${r.status === 'pending' && can('orders_validate') ? `<button class="btn ok" data-a="validateRequest" data-id="${r.id}">Valider</button><button class="btn danger" data-a="refuseRequest" data-id="${r.id}">Refuser</button>` : ''}
                     ${r.status === 'pending' && r.mine ? `<button class="btn" data-a="cancelRequest" data-id="${r.id}">Annuler</button>` : ''}
-                    ${r.status === 'ready' && r.mine ? `<button class="btn primary" data-a="claimRequest" data-id="${r.id}">Récupérer</button>` : ''}
+                    ${r.status === 'ready' && r.mine ? `<button class="btn primary" data-a="gps" data-id="${r.id}">📍 GPS</button>` : ''}
                 </td></tr>`).join('')}</table>` : '<div class="empty">Aucune commande.</div>'}
         </div>`;
 };
@@ -402,7 +406,7 @@ document.addEventListener('click', async (e) => {
             const o = order(id);
             const fields = [{ name: 'quantity', label: `Quantité (1 à ${D.config.maxQuantity})`, type: 'number', value: 1 }];
             if (o.payment === 'both') fields.push({ name: 'account', label: 'Payer avec', type: 'select', value: 'dirty', options: [{ value: 'clean', label: 'Argent propre' }, { value: 'dirty', label: 'Argent sale' }] });
-            fields.unshift({ type: 'info', html: `<b>${esc(o.name)}</b> · ${money(o.price)} l'unité. Payée par le coffre du groupe à la validation.` });
+            fields.unshift({ type: 'info', html: `<b>${esc(o.name)}</b> · ${money(o.price)} l'unité. Payée par le coffre du groupe${D.config.requireValidation ? ' à la validation' : ''}, prête ${D.config.prepareMinutes} minutes plus tard.` });
             v = await formModal('Passer commande', fields, 'Commander');
             if (v) action('placeOrder', { id, quantity: Number(v.quantity), account: v.account || o.payment });
             return;
@@ -427,7 +431,7 @@ document.addEventListener('click', async (e) => {
             return;
         case 'refuseRequest': return action('refuseRequest', { id });
         case 'cancelRequest': return action('cancelRequest', { id });
-        case 'claimRequest': return action('claimRequest', { id });
+        case 'gps': return post('gps', { id });
         case 'saveSettings':
             return action('saveSettings', { label: $('#set-label').value, color: $('#set-color').value, description: $('#set-desc').value });
     }

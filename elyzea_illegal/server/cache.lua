@@ -9,6 +9,7 @@ Cache = {
     memberOf = {},   -- [citizenid] = groupId
     orders = {},     -- [orderId] = order (groupId nil = proposée à tous)
     requests = {},   -- [requestId] = demande de commande
+    spots = {},      -- [spotId] = lieu de livraison placé par le staff
     ready = false,
 }
 
@@ -56,8 +57,12 @@ function Cache.newRequest(row)
         id = row.id, groupId = row.group_id, orderId = row.order_id, orderName = row.order_name, quantity = row.quantity,
         total = tonumber(row.total) or 0, account = row.account, item = row.item, itemCount = tonumber(row.item_count) or 0,
         status = row.status, requester = row.requester, requesterCid = row.requester_cid, handledBy = row.handled_by,
-        created = row.created or os.time(),
+        created = row.created or os.time(), readyAt = tonumber(row.ready_at), spot = decode(row.spot),
     }
+end
+
+function Cache.newSpot(row)
+    return { id = row.id, label = row.label or '', x = row.x + 0.0, y = row.y + 0.0, z = row.z + 0.0, h = (row.heading or 0) + 0.0 }
 end
 
 -- ---------------------------------------------------------
@@ -65,7 +70,7 @@ end
 -- ---------------------------------------------------------
 function Cache.load()
     local d = DB.loadAll()
-    Cache.groups, Cache.memberOf, Cache.orders, Cache.requests = {}, {}, {}, {}
+    Cache.groups, Cache.memberOf, Cache.orders, Cache.requests, Cache.spots = {}, {}, {}, {}, {}
     for _, r in ipairs(d.groups) do Cache.groups[r.id] = Cache.newGroup(r) end
     for _, r in ipairs(d.grades) do
         local g = Cache.groups[r.group_id]
@@ -88,6 +93,7 @@ function Cache.load()
     end
     for _, r in ipairs(d.orders) do Cache.orders[r.id] = Cache.newOrder(r) end
     for _, r in ipairs(d.requests) do Cache.requests[r.id] = Cache.newRequest(r) end
+    for _, r in ipairs(d.spots or {}) do Cache.spots[r.id] = Cache.newSpot(r) end
     Cache.ready = true
 
     local n = 0

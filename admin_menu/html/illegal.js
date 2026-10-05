@@ -21,7 +21,7 @@
         { id: 'orders', label: 'Commandes' },
         { id: 'settings', label: 'Paramètres' },
     ];
-    const IL = { sub: 'info', groupId: null, permEdit: null, permDraft: null, settings: null, pedMenu: null };
+    const IL = { sub: 'info', groupId: null, permEdit: null, permDraft: null, settings: null, pedMenu: null, itemsAsked: false, items: null };
     const send = (name, data = {}) => action('illegal', { name, data });
     const money = (n) => `${Number(n || 0).toLocaleString('fr-FR')} $`;
     const signed = (n) => `<span style="color:var(${n >= 0 ? '--ok' : '--danger'})">${n >= 0 ? '+' : '−'}${money(Math.abs(n))}</span>`;
@@ -29,7 +29,11 @@
     const ACCOUNTS = { clean: 'Argent propre', dirty: 'Argent sale' };
     const PAYMENTS = { clean: 'Argent propre', dirty: 'Argent sale', both: 'Propre ou sale' };
     const TX = { deposit: 'Dépôt', withdraw: 'Retrait', admin_add: 'Ajout staff', admin_remove: 'Retrait staff', order: 'Commande' };
-    const STATUS = { pending: 'En attente', ready: 'Prête à récupérer', delivered: 'Livrée', refused: 'Refusée', cancelled: 'Annulée' };
+    const STATUS = { pending: 'En attente de validation', preparing: 'En préparation', ready: 'Prête : point GPS envoyé', delivered: 'Livrée', refused: 'Refusée', cancelled: 'Annulée' };
+    const hhmm = (t) => (t ? new Date(t * 1000).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
+    // Liste des objets ox_inventory : demandée une fois quand on ouvre l'onglet (pour choisir ce qui se commande)
+    const askItems = () => { if (!IL.itemsAsked) { IL.itemsAsked = true; setTimeout(() => send('loadItems'), 0); } };
+    const itemLabel = (name) => { const it = (IL.items || []).find((x) => x.name === name); return it ? `${it.label} (${name})` : name; };
     const typeOpts = () => D.illegal.types.map((t) => ({ value: t.key, label: t.label }));
     const typeColor = (k) => (D.illegal.types.find((t) => t.key === k) || {}).color || 'var(--muted)';
     const sel = () => D.illegal.selected;
@@ -38,7 +42,8 @@
     const arr = (x) => (Array.isArray(x) ? x : Object.values(x || {}));
     const normalize = (d) => {
         if (d.normalized) return;
-        ['groups', 'globalOrders', 'types', 'permissions', 'tabs', 'categories'].forEach((k) => { d[k] = arr(d[k]); });
+        ['groups', 'globalOrders', 'types', 'permissions', 'tabs', 'categories', 'spots'].forEach((k) => { d[k] = arr(d[k]); });
+        if (d.items) IL.items = arr(d.items);
         d.groups.forEach((g) => { g.og = arr(g.og); });
         const g = d.selected;
         if (g) {
@@ -66,6 +71,7 @@
         }
         if (d.loading) return '<div class="empty">Chargement du module illégal…</div>';
         normalize(d);
+        askItems();
         syncDrafts();
         if (!sel()) return dashboard(d);
         const g = sel();
@@ -103,9 +109,20 @@
                     : '<div class="empty">Aucun groupe illégal. Crée le premier avec « + Créer un groupe ».</div>'}
             </div>
             <div class="section"><h2>Commandes proposées à tous les groupes (${d.globalOrders.length})</h2>
-                <p class="hint">Visibles dans la tablette de chaque groupe. Seul le staff peut lier une commande à un <b>objet d'inventaire</b> livré au joueur.</p>
+                <p class="hint">Visibles dans la tablette de chaque groupe. Le catalogue propre à un groupe se règle dans <b>Gérer › Commandes</b>.</p>
                 <div class="btn-row" style="margin-bottom:12px"><button class="btn" data-ila="createOrder" data-global="1">+ Créer une commande pour tous</button></div>
                 ${ordersTable(d.globalOrders)}
+            </div>
+            <div class="section"><h2>Points de livraison (${d.spots.length})</h2>
+                <p class="hint">Lieux cachés où le chef (bras croisés) et ses gardes armés attendent avec le sac, ${d.delivery.prepareMinutes} minutes après la commande.
+                Le lieu choisi est à plus de ${Math.round(d.delivery.minDistance)} m du joueur quand c'est possible.
+                ${d.spots.length ? '' : `<b>Aucun point placé : les ${d.defaultSpots} lieux par défaut de config.lua sont utilisés.</b>`}
+                Le chef est placé à ta position, tourné dans ta direction ; le sac est posé devant lui.</p>
+                <div class="btn-row" style="margin-bottom:12px"><button class="btn primary" data-ila="addSpot">📍 Ajouter un point à ma position</button></div>
+                ${d.spots.length ? `<table><tr><th>Nom</th><th>Coordonnées</th><th></th></tr>
+                ${d.spots.map((s) => `<tr><td><strong>${esc(s.label)}</strong></td><td class="muted">${s.x.toFixed(1)}, ${s.y.toFixed(1)}, ${s.z.toFixed(1)} · ${s.h.toFixed(0)}°</td>
+                    <td style="text-align:right;white-space:nowrap"><button class="btn" data-ila="gotoSpot" data-sid="${s.id}">Y aller</button>
+                    <button class="btn danger" data-ila="removeSpot" data-sid="${s.id}">✕</button></td></tr>`).join('')}</table>` : ''}
             </div>`;
     }
 
@@ -115,7 +132,7 @@
         return `<table><tr><th>Nom</th><th>Type</th><th>Prix</th><th>Paiement</th><th>Objet livré</th><th>Disponible</th><th></th></tr>
             ${list.map((o) => `<tr><td><strong>${esc(o.name)}</strong><br><span class="muted">${esc(o.description)}</span></td>
                 <td>${cat(o.category).ico} ${esc(cat(o.category).label)}</td><td>${money(o.price)}</td><td>${PAYMENTS[o.payment]}</td>
-                <td>${o.item ? `${esc(o.item)} x${o.itemCount}` : '<span class="muted">— (RP)</span>'}</td>
+                <td>${o.item ? `${esc(itemLabel(o.item))} x${o.itemCount}` : '<span class="muted">— (RP)</span>'}</td>
                 <td><div class="tile toggle-tile ${o.available ? 'on' : ''}" data-ila="toggleOrder" data-oid="${o.id}" style="padding:6px 8px"><span></span><div class="switch"></div></div></td>
                 <td style="text-align:right;white-space:nowrap"><button class="btn" data-ila="editOrder" data-oid="${o.id}">Modifier</button>
                     <button class="btn danger" data-ila="deleteOrder" data-oid="${o.id}">✕</button></td></tr>`).join('')}</table>`;
@@ -265,8 +282,9 @@
     /* ---------- Commandes ---------- */
     SUBVIEWS.orders = (g) => `
         <div class="section"><h2>Commandes du groupe (${g.orders.length})</h2>
-            <p class="hint">Le groupe voit aussi les commandes proposées à tous (liste des groupes). Un membre passe commande, un grade autorisé la valide :
-            le coffre du groupe paie. Si un objet est lié, le membre le récupère dans sa tablette.</p>
+            <p class="hint">Choisis ce que ce groupe peut commander et à quel prix : une fois enregistré, ses membres le voient dans leur tablette et peuvent commander.
+            ${D.illegal.delivery.requireValidation ? 'Un grade autorisé valide, puis le' : 'Le'} coffre du groupe paie ; ${D.illegal.delivery.prepareMinutes} minutes plus tard
+            le joueur reçoit un point GPS et récupère le sac devant le chef. Le groupe voit aussi les commandes proposées à tous.</p>
             <div class="btn-row" style="margin-bottom:12px"><button class="btn primary" data-ila="createOrder">+ Créer une commande</button></div>
             ${ordersTable(g.orders)}
         </div>
@@ -274,8 +292,9 @@
             ${g.requests.length ? `<table><tr><th>Date</th><th>Commande</th><th>Par</th><th>Total</th><th>Statut</th><th></th></tr>
             ${g.requests.map((r) => `<tr><td class="muted">${date(r.created)}</td><td>${r.quantity}x ${esc(r.orderName)}</td><td>${esc(r.requester)}</td>
                 <td>${money(r.total)}<br><span class="muted">${ACCOUNTS[r.account]}</span></td>
-                <td>${STATUS[r.status] || esc(r.status)}${r.handledBy ? `<br><span class="muted">${esc(r.handledBy)}</span>` : ''}</td>
-                <td style="text-align:right;white-space:nowrap">${r.status === 'pending' ? `<button class="btn primary" data-ila="validateRequest" data-rid="${r.id}">Valider</button>
+                <td>${STATUS[r.status] || esc(r.status)}${r.status === 'preparing' && r.readyAt ? ` · prête vers ${hhmm(r.readyAt)}` : ''}
+                    ${r.spot && (r.status === 'preparing' || r.status === 'ready') ? `<br><span class="muted">📍 ${esc(r.spot)}</span>` : ''}${r.handledBy ? `<br><span class="muted">${esc(r.handledBy)}</span>` : ''}</td>
+                <td style="text-align:right;white-space:nowrap">${r.status === 'preparing' ? `<button class="btn" data-ila="readyNow" data-rid="${r.id}">Rendre prête maintenant</button>` : ''}${r.status === 'pending' ? `<button class="btn primary" data-ila="validateRequest" data-rid="${r.id}">Valider</button>
                     <button class="btn danger" data-ila="refuseRequest" data-rid="${r.id}">Refuser</button>` : ''}</td></tr>`).join('')}</table>`
                 : '<div class="empty">Aucune demande.</div>'}
         </div>`;
@@ -319,15 +338,23 @@
         const g = sel();
         return (g ? g.orders : []).concat(D.illegal.globalOrders).find((o) => o.id === Number(id));
     };
+    const itemOptions = (cur) => {
+        const items = IL.items || [];
+        const opts = [{ value: '', label: '— Aucun objet (commande RP) —' }].concat(items.map((x) => ({ value: x.name, label: `${x.label} (${x.name})` })));
+        if (cur && !items.find((x) => x.name === cur)) opts.push({ value: cur, label: `${cur} (introuvable)` });
+        return opts;
+    };
     const orderFields = (o) => [
-        { name: 'name', label: 'Nom', value: o ? o.name : '', placeholder: 'ex : Pistolet' },
+        IL.items && IL.items.length
+            ? { name: 'item', label: 'Ce qu\'ils peuvent commander (objet livré dans le sac)', type: 'select', value: o && o.item ? o.item : '', options: itemOptions(o && o.item) }
+            : { name: 'item', label: 'Objet livré (nom ox_inventory, ex : weapon_pistol)', value: o && o.item ? o.item : '' },
+        { name: 'itemCount', label: 'Quantité d\'objet par commande', type: 'number', value: o ? o.itemCount : 1 },
+        { name: 'price', label: 'Prix (unité)', type: 'number', value: o ? o.price : 0 },
+        { name: 'name', label: 'Nom affiché (vide = nom de l\'objet)', value: o ? o.name : '', placeholder: 'ex : Pistolet' },
         { name: 'description', label: 'Description', value: o ? o.description : '' },
         { name: 'category', label: 'Type', type: 'select', value: o ? o.category : 'other', options: D.illegal.categories.map((c) => ({ value: c.key, label: `${c.ico} ${c.label}` })) },
-        { name: 'price', label: 'Prix (unité)', type: 'number', value: o ? o.price : 0 },
         { name: 'payment', label: 'Payée avec', type: 'select', value: o ? o.payment : 'dirty', options: Object.entries(PAYMENTS).map(([value, label]) => ({ value, label })) },
         { name: 'available', label: 'Disponibilité', type: 'select', value: o ? String(o.available) : 'true', options: [{ value: 'true', label: 'Disponible' }, { value: 'false', label: 'Indisponible' }] },
-        { name: 'item', label: 'Objet livré (facultatif, ex : weapon_pistol)', value: o && o.item ? o.item : '' },
-        { name: 'itemCount', label: 'Quantité d\'objet par commande', type: 'number', value: o ? o.itemCount : 1 },
     ];
     const orderPayload = (v) => ({ name: v.name, description: v.description, category: v.category, price: Number(v.price), payment: v.payment,
         available: v.available === 'true', item: v.item, itemCount: Number(v.itemCount) });
@@ -486,6 +513,18 @@
                 if (await confirmBox(`Supprimer « ${o.name} » ?`, 'La commande ne sera plus proposée.')) send('deleteOrder', { id: o.global ? undefined : id, orderId: o.id });
                 return;
             }
+            case 'readyNow': return send('readyNow', { id, requestId: Number(n.dataset.rid) });
+            case 'addSpot':
+                v = await formModal('Nouveau point de livraison', [
+                    { name: 'label', label: 'Nom du lieu (le chef sera placé à ta position, tourné dans ta direction : choisis un coin caché et dégagé pour 6 PNJ)',
+                        placeholder: 'ex : Entrepôt abandonné du port' },
+                ], 'Ajouter ici');
+                if (v) send('addSpot', { label: v.label, useMyPosition: true });
+                return;
+            case 'gotoSpot': post('close'); return send('gotoSpot', { spotId: Number(n.dataset.sid) });
+            case 'removeSpot':
+                if (await confirmBox('Supprimer ce point de livraison ?', 'Les livraisons déjà en cours ne sont pas touchées.')) send('removeSpot', { spotId: Number(n.dataset.sid) });
+                return;
             case 'validateRequest':
                 if (await confirmBox('Valider la commande ?', 'Le montant sera retiré du coffre du groupe.')) send('validateRequest', { id, requestId: Number(n.dataset.rid) });
                 return;
