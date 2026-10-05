@@ -166,6 +166,9 @@ Config.Permissions = {
     { key = 'police_staff',    label = 'Tablette staff Police (/police_staff) : configurer tout le métier Police', cat = 'Métiers' },
     { key = 'lscustom_staff',  label = 'LsCustom : gérer tout le métier (grades, zones, prix, tenues, permissions)', cat = 'Métiers' },
     { key = 'concess_staff',   label = 'Concession : gérer tout le métier (grades, zones, permissions, tenues, tablette direction)', cat = 'Métiers' },
+
+    -- Illégal (ressource elyzea_illegal)
+    { key = 'illegal_staff',   label = 'ILLEGAL : gérer les groupes illégaux (gangs, organisations, cartels, grades, membres, finances, PED, commandes)', cat = 'Illégal' },
 }
 
 -- =========================================================
@@ -255,6 +258,14 @@ Config.LsCustom = {
 Config.Concess = {
     resource = 'elyzea_concess',  -- dossier de la ressource
     jobs = { 'cardealer' },       -- métier (complété par celui de la ressource)
+}
+
+-- =========================================================
+--  ILLEGAL (ressource elyzea_illegal)
+--  Onglet ILLEGAL (permission « illegal_staff »).
+-- =========================================================
+Config.Illegal = {
+    resource = 'elyzea_illegal',  -- dossier de la ressource
 }
 
 -- =========================================================

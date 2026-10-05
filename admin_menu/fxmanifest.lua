@@ -50,6 +50,7 @@ server_scripts {
     'server/concess.lua',
     'server/map.lua',
     'server/drops.lua',
+    'server/illegal.lua',
 }
 
 ui_page 'html/index.html'
@@ -70,5 +71,6 @@ files {
     'html/map.js',
     'html/stashes.js',
     'html/drops.js',
+    'html/illegal.js',
     'html/logo.png',
 }
